@@ -1,0 +1,6 @@
+{
+  "name": "Varahi Eat & Fit",
+  "description": "Premium healthy food restaurant offering clean, organic, and delicious meals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

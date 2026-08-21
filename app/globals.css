@@ -1,0 +1,820 @@
+@import "tailwindcss";
+
+/* =========================================================
+   GLOBAL
+   ========================================================= */
+
+html {
+  scroll-behavior: smooth;
+  background: #050505;
+}
+
+body {
+  min-height: 100vh;
+  background: #050505;
+}
+
+
+/* =========================================================
+   PREMIUM PAGE BACKGROUND
+   ========================================================= */
+
+.premium-page-bg {
+  background:
+    radial-gradient(
+      circle at 20% 25%,
+      rgba(255, 77, 87, 0.06),
+      transparent 35%
+    ),
+    radial-gradient(
+      circle at 80% 40%,
+      rgba(255, 77, 87, 0.05),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 50% 80%,
+      rgba(255, 77, 87, 0.04),
+      transparent 45%
+    ),
+    radial-gradient(
+      circle at center,
+      transparent 0%,
+      rgba(0, 0, 0, 0.55) 100%
+    ),
+    linear-gradient(
+      180deg,
+      #050505 0%,
+      #080505 20%,
+      #090404 40%,
+      #070404 70%,
+      #050505 100%
+    );
+
+  background-attachment: scroll;
+  background-color: #050505;
+}
+
+
+/* =========================================================
+   HERO PERFORMANCE
+   GPU-FRIENDLY ANIMATIONS
+   Only transform + opacity are animated.
+   ========================================================= */
+
+.hero-glow {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
+}
+
+
+/* ---------------------------------------------------------
+   Main Glow
+   --------------------------------------------------------- */
+
+.hero-glow-main {
+  width: 62%;
+  height: 62%;
+  background: rgba(255, 77, 87, 0.16);
+
+  /*
+   Keep blur static.
+   Do NOT animate filter.
+  */
+  filter: blur(90px);
+
+  opacity: 0.8;
+
+  animation:
+    heroGlowMain 12s ease-in-out infinite;
+
+  will-change: transform, opacity;
+}
+
+
+.hero-glow-secondary {
+  width: 85%;
+  height: 85%;
+  background: rgba(255, 77, 87, 0.07);
+
+  filter: blur(120px);
+
+  opacity: 0.7;
+
+  animation:
+    heroGlowSecondary 15s ease-in-out infinite;
+
+  will-change: transform, opacity;
+}
+
+
+/* =========================================================
+   HERO RINGS
+   ========================================================= */
+
+.hero-ring {
+  position: absolute;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+
+  border: 1px solid rgba(255, 255, 255, 0.018);
+
+  pointer-events: none;
+
+  transform: translate3d(0, 0, 0);
+
+  will-change: transform;
+
+  /*
+   Prevent the browser from repainting unnecessary areas.
+  */
+  backface-visibility: hidden;
+}
+
+
+.hero-ring-1 {
+  width: 72%;
+
+  border-left-color: rgba(255, 77, 87, 0.13);
+
+  animation:
+    heroRingClockwise 60s linear infinite;
+}
+
+
+.hero-ring-2 {
+  width: 88%;
+
+  border-right-color: rgba(255, 77, 87, 0.15);
+
+  animation:
+    heroRingCounterClockwise 90s linear infinite;
+}
+
+
+.hero-ring-3 {
+  width: 108%;
+
+  border-color: rgba(255, 255, 255, 0.02);
+
+  animation:
+    heroRingClockwise 120s linear infinite;
+}
+
+
+/* =========================================================
+   PARTICLES
+   ========================================================= */
+
+.hero-particle {
+  position: absolute;
+
+  display: block;
+
+  border-radius: 9999px;
+
+  background: #ff4d57;
+
+  box-shadow:
+    0 0 10px rgba(255, 77, 87, 0.55);
+
+  transform: translate3d(0, 0, 0);
+
+  animation:
+    heroParticle 5s ease-in-out infinite;
+
+  will-change: transform, opacity;
+
+  pointer-events: none;
+
+  backface-visibility: hidden;
+}
+
+
+/* =========================================================
+   MAIN BOWL FLOAT
+   ========================================================= */
+
+.hero-bowl-float {
+  position: relative;
+
+  width: 100%;
+  height: 100%;
+
+  transform: translate3d(0, 0, 0);
+
+  animation:
+    heroBowlFloat 8s ease-in-out infinite;
+
+  will-change: transform;
+
+  backface-visibility: hidden;
+}
+
+
+/* =========================================================
+   BOWL SHADOW
+   ========================================================= */
+
+.hero-bowl-shadow {
+  border-radius: 9999px;
+
+  background: rgba(0, 0, 0, 0.65);
+
+  /*
+   Static blur is much cheaper than animating blur.
+  */
+  filter: blur(40px);
+
+  pointer-events: none;
+
+  animation:
+    heroShadowPulse 8s ease-in-out infinite;
+
+  will-change: transform, opacity;
+}
+
+
+/* =========================================================
+   ORBITS
+   ========================================================= */
+
+.hero-orbit {
+  position: absolute;
+  inset: 0;
+
+  pointer-events: none;
+
+  transform-origin: center center;
+  transform: translate3d(0, 0, 0);
+
+  will-change: transform;
+
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+/* =========================================================
+   TRUE CIRCULAR ORBIT AROUND THE BOWL
+   ========================================================= */
+
+.hero-orbit-1 {
+  animation: ingredientOrbit1 40s linear infinite;
+}
+
+.hero-orbit-2 {
+  animation: ingredientOrbit2 48s linear infinite;
+}
+
+.hero-orbit-3 {
+  animation: ingredientOrbit3 44s linear infinite;
+}
+
+.hero-orbit-4 {
+  animation: ingredientOrbit4 42s linear infinite;
+}
+
+.hero-orbit-5 {
+  animation: ingredientOrbit5 52s linear infinite;
+}
+
+/* =========================================================
+   FLOATING INGREDIENT BASE
+   ========================================================= */
+
+.hero-ingredient {
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  transform: translate3d(0, -50%, 0);
+
+  pointer-events: none;
+
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* =========================================================
+   BASIL
+   ========================================================= */
+
+.hero-ingredient-basil-1 {
+  width: 112px;
+  height: 112px;
+
+  margin-left: clamp(100px, 18vw, 190px);
+  will-change: transform;
+}
+
+
+.hero-ingredient-basil-2 {
+  width: 80px;
+  height: 80px;
+
+  margin-left: clamp(115px, 21vw, 225px);
+
+  animation-delay: -2s;
+
+  will-change: transform;
+}
+
+
+.hero-ingredient-basil-3 {
+  width: 64px;
+  height: 64px;
+
+  margin-left: clamp(100px, 18vw, 200px);
+
+  will-change: transform;
+}
+
+
+/* =========================================================
+   TOMATOES
+   ========================================================= */
+
+.hero-ingredient-tomato-1 {
+  width: 96px;
+  height: 96px;
+
+  margin-left: clamp(100px, 19vw, 205px);
+
+  will-change: transform;
+}
+
+
+.hero-ingredient-tomato-2 {
+  width: 72px;
+  height: 72px;
+
+  margin-left: clamp(120px, 22vw, 235px);
+
+  will-change: transform;
+}
+
+
+/* =========================================================
+   GLOW ANIMATIONS
+   ========================================================= */
+
+@keyframes heroGlowMain {
+
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.65;
+  }
+
+  50% {
+    transform: translate3d(0, 0, 0) scale(1.08);
+    opacity: 0.85;
+  }
+}
+
+
+@keyframes heroGlowSecondary {
+
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: translate3d(0, 0, 0) scale(1.08);
+    opacity: 0.7;
+  }
+}
+
+
+/* =========================================================
+   RING ROTATION
+   ========================================================= */
+
+@keyframes heroRingClockwise {
+
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+
+  to {
+    transform: translate3d(0, 0, 0) rotate(360deg);
+  }
+}
+
+
+@keyframes heroRingCounterClockwise {
+
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+
+  to {
+    transform: translate3d(0, 0, 0) rotate(-360deg);
+  }
+}
+
+
+/* =========================================================
+   PARTICLE FLOAT
+   ========================================================= */
+
+@keyframes heroParticle {
+
+  0%,
+  100% {
+    transform:
+      translate3d(0, -8px, 0)
+      scale(0.9);
+
+    opacity: 0.35;
+  }
+
+  50% {
+    transform:
+      translate3d(0, 8px, 0)
+      scale(1.15);
+
+    opacity: 0.9;
+  }
+}
+
+
+/* =========================================================
+   BOWL FLOAT
+   ========================================================= */
+
+@keyframes heroBowlFloat {
+
+  0%,
+  100% {
+    transform:
+      translate3d(0, -10px, 0)
+      rotate(-0.8deg);
+  }
+
+  50% {
+    transform:
+      translate3d(0, 12px, 0)
+      rotate(0.8deg);
+  }
+}
+
+
+/* =========================================================
+   BOWL SHADOW
+   ========================================================= */
+
+@keyframes heroShadowPulse {
+
+  0%,
+  100% {
+    transform:
+      translate3d(0, 0, 0)
+      scale(0.94);
+
+    opacity: 0.3;
+  }
+
+  50% {
+    transform:
+      translate3d(0, 0, 0)
+      scale(1.04);
+
+    opacity: 0.5;
+  }
+}
+
+
+/* =========================================================
+   BASIL FLOAT ANIMATIONS
+   ========================================================= */
+
+/* =========================================================
+   FULL 360° INGREDIENT ROTATION
+   Lightweight CSS-only animation
+   ========================================================= */
+
+@keyframes basilFloat1 {
+  0% {
+    transform: translate3d(0, -50%, 0) translate3d(0, -10px, 0) rotate(0deg);
+  }
+
+  25% {
+    transform: translate3d(0, -50%, 0) translate3d(10px, 0, 0) rotate(90deg);
+  }
+
+  50% {
+    transform: translate3d(0, -50%, 0) translate3d(0, 10px, 0) rotate(180deg);
+  }
+
+  75% {
+    transform: translate3d(0, -50%, 0) translate3d(-10px, 0, 0) rotate(270deg);
+  }
+
+  100% {
+    transform: translate3d(0, -50%, 0) translate3d(0, -10px, 0) rotate(360deg);
+  }
+}
+
+
+@keyframes basilFloat2 {
+  0% {
+    transform: translate3d(0, -50%, 0) translate3d(0, 10px, 0) rotate(360deg);
+  }
+
+  25% {
+    transform: translate3d(0, -50%, 0) translate3d(-12px, 0, 0) rotate(270deg);
+  }
+
+  50% {
+    transform: translate3d(0, -50%, 0) translate3d(0, -10px, 0) rotate(180deg);
+  }
+
+  75% {
+    transform: translate3d(0, -50%, 0) translate3d(12px, 0, 0) rotate(90deg);
+  }
+
+  100% {
+    transform: translate3d(0, -50%, 0) translate3d(0, 10px, 0) rotate(0deg);
+  }
+}
+
+
+@keyframes basilFloat3 {
+  0% {
+    transform: translate3d(0, -50%, 0) rotate(0deg);
+  }
+
+  50% {
+    transform: translate3d(0, -50%, 0) translate3d(8px, -10px, 0) rotate(180deg);
+  }
+
+  100% {
+    transform: translate3d(0, -50%, 0) rotate(360deg);
+  }
+}
+
+
+@keyframes tomatoFloat1 {
+  0% {
+    transform: translate3d(0, -50%, 0) translate3d(0, 8px, 0) rotate(0deg);
+  }
+
+  25% {
+    transform: translate3d(0, -50%, 0) translate3d(-10px, 0, 0) rotate(90deg);
+  }
+
+  50% {
+    transform: translate3d(0, -50%, 0) translate3d(0, -8px, 0) rotate(180deg);
+  }
+
+  75% {
+    transform: translate3d(0, -50%, 0) translate3d(10px, 0, 0) rotate(270deg);
+  }
+
+  100% {
+    transform: translate3d(0, -50%, 0) translate3d(0, 8px, 0) rotate(360deg);
+  }
+}
+
+
+@keyframes tomatoFloat2 {
+  0% {
+    transform: translate3d(0, -50%, 0) translate3d(0, -8px, 0) rotate(360deg);
+  }
+
+  25% {
+    transform: translate3d(0, -50%, 0) translate3d(12px, 0, 0) rotate(270deg);
+  }
+
+  50% {
+    transform: translate3d(0, -50%, 0) translate3d(0, 8px, 0) rotate(180deg);
+  }
+
+  75% {
+    transform: translate3d(0, -50%, 0) translate3d(-12px, 0, 0) rotate(90deg);
+  }
+
+  100% {
+    transform: translate3d(0, -50%, 0) translate3d(0, -8px, 0) rotate(0deg);
+  }
+}
+
+/* =========================================================
+   LEGACY ORBIT ANIMATIONS
+   ========================================================= */
+
+@keyframes heroOrbit1 {
+
+  from {
+    transform:
+      translate3d(0, -50%, 0)
+      rotate(0deg);
+  }
+
+  to {
+    transform:
+      translate3d(0, -50%, 0)
+      rotate(360deg);
+  }
+}
+
+
+@keyframes heroOrbit2 {
+
+  from {
+    transform:
+      translate3d(0, -50%, 0)
+      rotate(360deg);
+  }
+
+  to {
+    transform:
+      translate3d(0, -50%, 0)
+      rotate(0deg);
+  }
+}
+
+
+@keyframes heroOrbit3 {
+
+  from {
+    transform:
+      translate3d(0, -50%, 0)
+      rotate(0deg);
+  }
+
+  to {
+    transform:
+      translate3d(0, -50%, 0)
+      rotate(360deg);
+  }
+}
+
+
+@keyframes heroOrbit4 {
+
+  from {
+    transform:
+      translate3d(0, -50%, 0)
+      rotate(0deg);
+  }
+
+  to {
+    transform:
+      translate3d(0, -50%, 0)
+      rotate(-360deg);
+  }
+}
+
+
+@keyframes heroOrbit5 {
+
+  from {
+    transform:
+      translate3d(0, -50%, 0)
+      rotate(360deg);
+  }
+
+  to {
+    transform:
+      translate3d(0, -50%, 0)
+      rotate(0deg);
+  }
+}
+
+
+/* =========================================================
+   PERFORMANCE HELPERS
+   ========================================================= */
+
+.hero-animated {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+
+/* =========================================================
+   REDUCE MOTION
+   ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .hero-glow,
+  .hero-ring,
+  .hero-particle,
+  .hero-bowl-float,
+  .hero-bowl-shadow,
+  .hero-orbit,
+  .hero-ingredient {
+    animation: none !important;
+  }
+}
+
+
+/* =========================================================
+   MOBILE OPTIMIZATION
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+  .hero-glow-main {
+    filter: blur(70px);
+  }
+
+  .hero-glow-secondary {
+    filter: blur(90px);
+  }
+
+  .hero-ring-3 {
+    display: none;
+  }
+
+  .hero-ingredient-basil-1 {
+    width: 80px;
+    height: 80px;
+  }
+
+  .hero-ingredient-basil-2 {
+    width: 60px;
+    height: 60px;
+  }
+
+  .hero-ingredient-basil-3 {
+    width: 48px;
+    height: 48px;
+  }
+
+  .hero-ingredient-tomato-1 {
+    width: 70px;
+    height: 70px;
+  }
+
+  .hero-ingredient-tomato-2 {
+    width: 54px;
+    height: 54px;
+  }
+}
+/* =========================================================
+   TRUE 360° ORBITS
+   ========================================================= */
+
+@keyframes ingredientOrbit1 {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+
+  to {
+    transform: translate3d(0, 0, 0) rotate(360deg);
+  }
+}
+
+
+@keyframes ingredientOrbit2 {
+  from {
+    transform: translate3d(0, 0, 0) rotate(360deg);
+  }
+
+  to {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+}
+
+
+@keyframes ingredientOrbit3 {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+
+  to {
+    transform: translate3d(0, 0, 0) rotate(360deg);
+  }
+}
+
+
+@keyframes ingredientOrbit4 {
+  from {
+    transform: translate3d(0, 0, 0) rotate(360deg);
+  }
+
+  to {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+}
+
+
+@keyframes ingredientOrbit5 {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+
+  to {
+    transform: translate3d(0, 0, 0) rotate(360deg);
+  }
+}
+/* Hide floating order/info banner while shopping cart is open */
+body.cart-is-open .order-info-banner {
+  display: none !important;
+} 

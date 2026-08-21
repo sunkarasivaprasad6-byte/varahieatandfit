@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+html {
+  scroll-behavior: smooth;
+  background: #050505;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.premium-page-bg {
+  background:
+    radial-gradient(circle at 20% 25%, rgba(255, 77, 87, 0.06), transparent 35%),
+    radial-gradient(circle at 80% 40%, rgba(255, 77, 87, 0.05), transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(255, 77, 87, 0.04), transparent 45%),
+    radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.55) 100%),
+    linear-gradient(
+      180deg,
+      #050505 0%,
+      #080505 20%,
+      #090404 40%,
+      #070404 70%,
+      #050505 100%
+    );
+  background-attachment: fixed;
+  background-color: #050505;
+}
