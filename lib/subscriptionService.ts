@@ -1,9 +1,13 @@
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
+import { createNotification } from "@/lib/notificationService";
 
 export type Subscription = {
   id?: string;
   userId: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
   planId: string;
   planName: string;
   amount: number;
@@ -16,6 +20,10 @@ export type Subscription = {
   caloriesPerMeal: number;
   instructions: string;
   skippedMeals: number;
+  paymentOrderId?: string;
+  paymentAttemptId?: string;
+  paymentStatus?: "PENDING" | "SUCCESS" | "FAILED";
+  skippedMealRecords?: Array<{ id: string; skippedAt: string; expiresAt: string; scheduledFor?: string; scheduledTime?: string; status: "AVAILABLE" | "SCHEDULED" | "USED" | "EXPIRED" }>;
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -41,17 +49,57 @@ export function subscribeToActiveSubscription(userId: string, callback: (value: 
   });
 }
 
-export async function activateSubscription(id: string) {
+export function subscribeToCurrentSubscription(userId: string, callback: (value: Subscription | null) => void) {
+  const q = query(collection(db, "subscriptions"), where("userId", "==", userId));
+  return onSnapshot(q, (snap) => {
+    if (snap.empty) return callback(null);
+    const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) })) as Subscription[];
+    const rank: Record<Subscription["status"], number> = { ACTIVE: 5, PAUSED: 4, PENDING_PAYMENT: 3, COMPLETED: 2, CANCELLED: 1 };
+    items.sort((a, b) => (rank[b.status] - rank[a.status]) || String(b.startDate).localeCompare(String(a.startDate)));
+    callback(items[0] || null);
+  });
+}
+
+export async function getSubscription(id: string) {
+  const snap = await getDoc(doc(db, "subscriptions", id));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...(snap.data() as Omit<Subscription, "id">) } as Subscription;
+}
+
+export async function activateSubscription(id: string, paymentOrderId?: string) {
   const user = auth.currentUser;
   if (!user) throw new Error("Sign in required");
   const ref = doc(db, "subscriptions", id);
   const snap = await getDoc(ref);
   if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found");
-  await updateDoc(ref, { status: "ACTIVE", updatedAt: serverTimestamp() });
+  const data = snap.data() as Partial<Subscription>;
+  if (paymentOrderId && data.paymentOrderId && data.paymentOrderId !== paymentOrderId) throw new Error("Payment order does not match this subscription");
+  await updateDoc(ref, { status: "ACTIVE", paymentStatus: "SUCCESS", ...(paymentOrderId ? { paymentOrderId } : {}), updatedAt: serverTimestamp() });
 }
 
 export async function updateSubscription(id: string, data: Partial<Subscription>) {
-  await updateDoc(doc(db, "subscriptions", id), { ...data, updatedAt: serverTimestamp() });
+  const user = auth.currentUser;
+  const ref = doc(db, "subscriptions", id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Subscription not found");
+  const ownerId = String(snap.data().userId || "");
+  const isOwner = !!user && user.uid === ownerId;
+  const adminEmail = user?.email?.toLowerCase();
+  const configuredAdmins = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean) || ["sunkarasivaprasad6@gmail.com"];
+  const isAdmin = !!adminEmail && configuredAdmins.includes(adminEmail);
+  if (!isOwner && !isAdmin) throw new Error("Not authorized");
+
+  const previousStatus = String(snap.data().status || "");
+  await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
+
+  if (isAdmin && data.status && String(data.status) !== previousStatus) {
+    try {
+      const labels: Record<string, string> = { ACTIVE: "active", PAUSED: "paused", CANCELLED: "cancelled", COMPLETED: "completed", PENDING_PAYMENT: "waiting for payment" };
+      await createNotification({ userId: ownerId, title: `Subscription ${labels[data.status] || data.status.toLowerCase()}`, message: `${String(snap.data().planName || "Your subscription")} was updated by Varahi Eat & Fit to ${labels[data.status] || data.status.toLowerCase()}.`, type: "SUBSCRIPTION" });
+    } catch (error) {
+      console.error("Unable to create admin subscription notification", error);
+    }
+  }
 }
 
 export async function listSubscriptions() {
