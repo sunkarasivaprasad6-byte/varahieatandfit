@@ -19,7 +19,7 @@ export default function SubscriptionCheckoutPage() { return <Suspense fallback={
 
 function SubscriptionCheckoutContent() {
   const params = useSearchParams();
-  const plan = getPlan(params.get("plan") || "silver");
+  const plan = getPlan(params.get("plan") || "silver") as NonNullable<ReturnType<typeof getPlan>>;
   const [step, setStep] = useState(0);
   const [day, setDay] = useState<(typeof DAYS)[number]>("MON");
   const [userId, setUserId] = useState<string | null>(null);
