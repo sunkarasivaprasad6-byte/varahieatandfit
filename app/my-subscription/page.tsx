@@ -110,9 +110,7 @@ export default function MySubscription() {
   const adminMeal = today ? adminMealMap[today.toLowerCase()] : undefined;
   const meal = adminMeal || fallbackMeal;
   const endDays = sub ? remainingDays(sub.endDate) : 0;
-  const slotLocked = sub?.deliverySlot ? isSlotChangeLocked(sub.deliverySlot) : false;
   const currentAvailability = slotAvailability.find((item) => item.slot === sub?.deliverySlot);
-  const scheduleSlotLocked = scheduleDate === isoDate() && scheduleSlot ? isSlotChangeLocked(scheduleSlot) : false;
 
   async function saveRecords(next: SkippedMealRecord[]) {
     if (!sub?.id) return;
@@ -158,8 +156,8 @@ export default function MySubscription() {
       toast.error("Today's meal is skipped. Restore it before changing today's delivery slot.");
       return;
     }
-    if (slotLocked) {
-      toast.error("Today's slot can no longer be changed. Changes close 30 minutes before the slot starts.");
+    if (isSlotChangeLocked(selectedSlot)) {
+      toast.error("That slot has reached its 30-minute cutoff. Choose another available slot.");
       return;
     }
     if (selectedSlot === sub.deliverySlot) {
@@ -193,8 +191,8 @@ export default function MySubscription() {
       toast.error("Choose today or a future delivery date.");
       return;
     }
-    if (scheduleDate === isoDate() && scheduleSlotLocked) {
-      toast.error("That delivery slot has passed its 30-minute cutoff. Choose another slot or a future date.");
+    if (scheduleDate === isoDate() && isSlotChangeLocked(scheduleSlot)) {
+      toast.error("That delivery slot has reached its 30-minute cutoff. Choose another slot or a future date.");
       return;
     }
     if (scheduled.some((record) => record.scheduledFor === scheduleDate)) {
@@ -301,7 +299,7 @@ export default function MySubscription() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm font-semibold">Change delivery slot</p>
-                      <p className="mt-1 text-xs text-white/35">Only 7–9 AM, 12–2 PM and 7–9 PM are available. Changes close 30 minutes before today's current slot starts.</p>
+                      <p className="mt-1 text-xs text-white/35">Only 7–9 AM, 12–2 PM and 7–9 PM are available. Each slot closes 30 minutes before its own start time.</p>
                     </div>
                     {currentAvailability && <span className="text-xs text-white/40">{currentAvailability.count}/{currentAvailability.capacity} members</span>}
                   </div>
@@ -310,7 +308,8 @@ export default function MySubscription() {
                     {DELIVERY_SLOTS.map((slot) => {
                       const item = slotAvailability.find((entry) => entry.slot === slot);
                       const full = Boolean(item && !item.available && slot !== sub.deliverySlot);
-                      const locked = slotLocked || full;
+                      const cutoffPassed = isSlotChangeLocked(slot);
+                      const locked = full || cutoffPassed;
                       const selected = selectedSlot === slot;
                       return (
                         <button
@@ -321,14 +320,13 @@ export default function MySubscription() {
                           className={`rounded-2xl border p-4 text-left transition ${selected ? "border-[#E63946] bg-[#E63946]/10" : "border-white/10 bg-[#121010]"} ${locked ? "cursor-not-allowed opacity-45" : "hover:border-[#E63946]/70"}`}
                         >
                           <p className="font-semibold">{slot}</p>
-                          <p className="mt-1 text-xs text-white/40">{slot === sub.deliverySlot ? "Current slot" : full ? "Full / unavailable" : `${item?.remaining ?? "—"} places left`}</p>
+                          <p className="mt-1 text-xs text-white/40">{slot === sub.deliverySlot ? "Current slot" : full ? "Full / unavailable" : cutoffPassed ? "Cutoff passed" : `${item?.remaining ?? "—"} places left`}</p>
                         </button>
                       );
                     })}
                   </div>
 
-                  {slotLocked && <p className="mt-3 text-xs text-amber-400">Slot changes are locked for today because the 30-minute cutoff has passed.</p>}
-                  <button onClick={changeSlot} disabled={savingSlot || slotLocked} className="mt-4 w-full rounded-xl bg-[#E63946] px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto">{savingSlot ? "Saving…" : "Save delivery slot"}</button>
+                  <button onClick={changeSlot} disabled={savingSlot || !selectedSlot || isSlotChangeLocked(selectedSlot)} className="mt-4 w-full rounded-xl bg-[#E63946] px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto">{savingSlot ? "Saving…" : "Save delivery slot"}</button>
                 </div>
 
                 <div className="mt-7"><button onClick={skipToday} className="w-full rounded-full border border-white/10 px-5 py-3 text-sm hover:border-[#E63946]/60 sm:w-auto">Skip today</button></div>
@@ -375,7 +373,7 @@ export default function MySubscription() {
                     return <button key={slot} type="button" disabled={disabled} onClick={() => setScheduleSlot(slot)} className={`rounded-xl border p-3 text-left text-xs ${scheduleSlot === slot ? "border-[#E63946] bg-[#E63946]/10" : "border-white/10"} ${disabled ? "cursor-not-allowed opacity-40" : "hover:border-[#E63946]/60"}`}><span className="font-semibold">{slot}</span><span className="mt-1 block text-white/35">{full ? "Full" : cutoffPassed ? "Cutoff passed" : `${item?.remaining ?? "—"} places left`}</span></button>;
                   })}
                 </div>
-                <button onClick={scheduleMeal} disabled={scheduleSlotLocked} className="rounded-xl bg-[#E63946] px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40">Reschedule</button>
+                <button onClick={scheduleMeal} disabled={!scheduleSlot || (scheduleDate === isoDate() && isSlotChangeLocked(scheduleSlot))} className="rounded-xl bg-[#E63946] px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40">Reschedule</button>
               </div>
             </div>
           )}
