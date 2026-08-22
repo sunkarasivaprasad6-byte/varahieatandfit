@@ -135,6 +135,11 @@ function SubscriptionCheckoutContent() {
   }
 
   async function startPayment() {
+    if (!plan) {
+      toast.error("The selected plan could not be found. Please return to the plans page and choose a valid plan.");
+      return;
+    }
+
     if (!userId) {
       const returnTo = `/subscriptions/checkout?plan=${encodeURIComponent(plan.id)}`;
       window.location.href = `/account?returnTo=${encodeURIComponent(returnTo)}`;
