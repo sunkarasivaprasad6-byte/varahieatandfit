@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -12,16 +12,18 @@ import { auth } from "@/lib/firebase";
 
 export default function Account() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
+  const [returnTo, setReturnTo] = useState("/my-subscription");
 
-  const returnTo = searchParams.get("returnTo") || "/my-subscription";
-
-  useEffect(() => onAuthStateChanged(auth, setUser), []);
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("returnTo");
+    if (value) setReturnTo(value);
+    return onAuthStateChanged(auth, setUser);
+  }, []);
 
   function safeReturnPath(value: string) {
     return value.startsWith("/") && !value.startsWith("//")
