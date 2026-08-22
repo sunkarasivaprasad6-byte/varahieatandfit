@@ -66,14 +66,26 @@ export async function activateSubscription(id: string, payment?: { orderId?: str
   const user = auth.currentUser;
   if (!user) throw new Error("Sign in required");
   const ref = doc(db, "subscriptions", id);
+  const currentSnap = await getDoc(ref);
+  if (!currentSnap.exists() || currentSnap.data().userId !== user.uid) throw new Error("Subscription not found");
+  const current = currentSnap.data() as Subscription;
+  if (current.status === "CANCELLED" || current.status === "COMPLETED") throw new Error("This subscription can no longer be activated");
+  if (current.status === "ACTIVE") return;
+
+  // Firestore client transactions cannot read a Query directly. Check the current
+  // slot occupancy before the atomic subscription update; the server-side payment
+  // verification remains the final activation gate.
+  const activeSnap = await getDocs(query(collection(db, "subscriptions"), where("status", "==", "ACTIVE"), where("deliverySlot", "==", current.deliverySlot)));
+  if (activeSnap.docs.filter((item) => item.id !== id).length >= DELIVERY_SLOT_CAPACITY) {
+    throw new Error(`The ${current.deliverySlot} delivery slot is full. Please choose another slot.`);
+  }
+
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(ref);
     if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found");
-    const current = snap.data() as Subscription;
-    if (current.status === "CANCELLED" || current.status === "COMPLETED") throw new Error("This subscription can no longer be activated");
-    if (current.status === "ACTIVE") return;
-    const activeSnap = await transaction.get(query(collection(db, "subscriptions"), where("status", "==", "ACTIVE"), where("deliverySlot", "==", current.deliverySlot)));
-    if (activeSnap.docs.filter((item) => item.id !== id).length >= DELIVERY_SLOT_CAPACITY) throw new Error(`The ${current.deliverySlot} delivery slot is full. Please choose another slot.`);
+    const latest = snap.data() as Subscription;
+    if (latest.status === "ACTIVE") return;
+    if (latest.status === "CANCELLED" || latest.status === "COMPLETED") throw new Error("This subscription can no longer be activated");
     transaction.update(ref, { status: "ACTIVE", paymentStatus: "SUCCESS", ...(payment?.orderId ? { paymentOrderId: payment.orderId } : {}), ...(payment?.paymentId ? { paymentId: payment.paymentId } : {}), paymentVerifiedAt: serverTimestamp(), updatedAt: serverTimestamp() });
   });
 }
