@@ -45,13 +45,17 @@ function tomorrowDate() {
   return isoDate(date);
 }
 
+function localDateFromIso(value: string) {
+  return isoDate(new Date(value));
+}
+
 function slotLabel(value?: string) {
   return DELIVERY_SLOTS.includes(value as DeliverySlot) ? value : "Not selected";
 }
 
 function todaySkipped(records: SkippedMealRecord[]) {
   const today = isoDate();
-  return records.find((record) => record.skippedAt.slice(0, 10) === today && record.status === "AVAILABLE");
+  return records.find((record) => localDateFromIso(record.skippedAt) === today && record.status === "AVAILABLE");
 }
 
 export default function MySubscription() {
@@ -108,6 +112,7 @@ export default function MySubscription() {
   const endDays = sub ? remainingDays(sub.endDate) : 0;
   const slotLocked = sub?.deliverySlot ? isSlotChangeLocked(sub.deliverySlot) : false;
   const currentAvailability = slotAvailability.find((item) => item.slot === sub?.deliverySlot);
+  const scheduleSlotLocked = scheduleDate === isoDate() && scheduleSlot ? isSlotChangeLocked(scheduleSlot) : false;
 
   async function saveRecords(next: SkippedMealRecord[]) {
     if (!sub?.id) return;
@@ -118,7 +123,10 @@ export default function MySubscription() {
   }
 
   async function skipToday() {
-    if (!sub?.id) return;
+    if (!sub?.id || !today || !meal) {
+      toast.error("There is no subscription meal scheduled today.");
+      return;
+    }
     if (skippedToday) {
       toast.error("Today's meal is already skipped.");
       return;
@@ -185,6 +193,10 @@ export default function MySubscription() {
       toast.error("Choose today or a future delivery date.");
       return;
     }
+    if (scheduleDate === isoDate() && scheduleSlotLocked) {
+      toast.error("That delivery slot has passed its 30-minute cutoff. Choose another slot or a future date.");
+      return;
+    }
     if (scheduled.some((record) => record.scheduledFor === scheduleDate)) {
       toast.error("You already have a rescheduled delivery on that date.");
       return;
@@ -234,6 +246,8 @@ export default function MySubscription() {
     );
   }
 
+  const canManageToday = Boolean(today && meal);
+
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#050505] px-4 pb-20 pt-24 text-white sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-5xl">
@@ -254,7 +268,12 @@ export default function MySubscription() {
                 <p className="text-xs font-bold uppercase tracking-widest text-[#E63946]">Today's meal</p>
                 <h2 className="mt-2 text-2xl font-bold">Meal skipped</h2>
                 <p className="mt-2 text-sm text-white/55">You skipped today's delivery. Delivery-time controls are hidden for today.</p>
-                <button onClick={undoSkipToday} className="mt-5 rounded-xl bg-[#E63946] px-5 py-3 text-sm font-bold">Undo Skip — Restore Today's Meal</button>
+                <button onClick={undoSkipToday} className="mt-5 w-full rounded-xl bg-[#E63946] px-5 py-3 text-sm font-bold sm:w-auto">Undo Skip — Restore Today's Meal</button>
+              </div>
+            ) : !canManageToday ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-5">
+                <p className="text-sm font-semibold">No subscription delivery today</p>
+                <p className="mt-2 text-sm text-white/45">The weekly subscription menu runs Monday through Saturday.</p>
               </div>
             ) : (
               <>
@@ -282,7 +301,7 @@ export default function MySubscription() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm font-semibold">Change delivery slot</p>
-                      <p className="mt-1 text-xs text-white/35">Only these three fixed slots are available. Changes close 30 minutes before the current slot starts.</p>
+                      <p className="mt-1 text-xs text-white/35">Only 7–9 AM, 12–2 PM and 7–9 PM are available. Changes close 30 minutes before today's current slot starts.</p>
                     </div>
                     {currentAvailability && <span className="text-xs text-white/40">{currentAvailability.count}/{currentAvailability.capacity} members</span>}
                   </div>
@@ -312,7 +331,7 @@ export default function MySubscription() {
                   <button onClick={changeSlot} disabled={savingSlot || slotLocked} className="mt-4 w-full rounded-xl bg-[#E63946] px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto">{savingSlot ? "Saving…" : "Save delivery slot"}</button>
                 </div>
 
-                <div className="mt-7"><button onClick={skipToday} className="rounded-full border border-white/10 px-5 py-3 text-sm hover:border-[#E63946]/60">Skip today</button></div>
+                <div className="mt-7"><button onClick={skipToday} className="w-full rounded-full border border-white/10 px-5 py-3 text-sm hover:border-[#E63946]/60 sm:w-auto">Skip today</button></div>
               </>
             )}
           </section>
@@ -335,8 +354,8 @@ export default function MySubscription() {
           <div className="mt-5 space-y-3">
             {available.length === 0 ? <p className="text-sm text-white/35">No available skipped meals.</p> : available.map((record) => (
               <div key={record.id} className="flex flex-col gap-3 rounded-2xl bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div><p className="text-sm font-semibold">Skipped meal</p><p className="mt-1 text-xs text-white/40">Expires in {remainingDays(record.expiresAt)} days</p></div>
-                <button onClick={() => { setScheduleId(record.id); setScheduleDate(tomorrowDate()); setScheduleSlot(sub.deliverySlot); }} className="w-full rounded-full border border-white/10 px-4 py-2 text-xs sm:w-auto">Schedule</button>
+                <div><p className="text-sm font-semibold">Skipped meal</p><p className="mt-1 text-xs text-white/40">Skipped on {localDateFromIso(record.skippedAt)} · expires in {remainingDays(record.expiresAt)} days</p></div>
+                <button onClick={() => { setScheduleId(record.id); setScheduleDate(localDateFromIso(record.skippedAt) === isoDate() ? isoDate() : tomorrowDate()); setScheduleSlot(sub.deliverySlot); }} className="w-full rounded-full border border-white/10 px-4 py-2 text-xs sm:w-auto">Schedule</button>
               </div>
             ))}
           </div>
@@ -344,22 +363,24 @@ export default function MySubscription() {
           {scheduleId && (
             <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5">
               <p className="text-sm font-semibold">Reschedule skipped meal</p>
-              <p className="mt-1 text-xs text-white/40">Choose a date and one of the fixed delivery slots.</p>
+              <p className="mt-1 text-xs text-white/40">Choose a date and one of the three fixed delivery slots. You can restore a meal to today if you skipped it by mistake.</p>
               <div className="mt-4 grid gap-3 lg:grid-cols-[180px_1fr_auto]">
                 <input type="date" min={isoDate()} value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="min-w-0 rounded-xl border border-white/10 bg-[#121010] p-3 text-sm" />
                 <div className="grid gap-2 sm:grid-cols-3">
                   {DELIVERY_SLOTS.map((slot) => {
                     const item = slotAvailability.find((entry) => entry.slot === slot);
                     const full = Boolean(item && !item.available);
-                    return <button key={slot} type="button" disabled={full} onClick={() => setScheduleSlot(slot)} className={`rounded-xl border p-3 text-left text-xs ${scheduleSlot === slot ? "border-[#E63946] bg-[#E63946]/10" : "border-white/10"} ${full ? "cursor-not-allowed opacity-40" : ""}`}><span className="font-semibold">{slot}</span><span className="mt-1 block text-white/35">{full ? "Full" : `${item?.remaining ?? "—"} places left`}</span></button>;
+                    const cutoffPassed = scheduleDate === isoDate() && isSlotChangeLocked(slot);
+                    const disabled = full || cutoffPassed;
+                    return <button key={slot} type="button" disabled={disabled} onClick={() => setScheduleSlot(slot)} className={`rounded-xl border p-3 text-left text-xs ${scheduleSlot === slot ? "border-[#E63946] bg-[#E63946]/10" : "border-white/10"} ${disabled ? "cursor-not-allowed opacity-40" : "hover:border-[#E63946]/60"}`}><span className="font-semibold">{slot}</span><span className="mt-1 block text-white/35">{full ? "Full" : cutoffPassed ? "Cutoff passed" : `${item?.remaining ?? "—"} places left`}</span></button>;
                   })}
                 </div>
-                <button onClick={scheduleMeal} className="rounded-xl bg-[#E63946] px-5 py-3 text-sm font-bold">Reschedule</button>
+                <button onClick={scheduleMeal} disabled={scheduleSlotLocked} className="rounded-xl bg-[#E63946] px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40">Reschedule</button>
               </div>
             </div>
           )}
 
-          {scheduled.length > 0 && <div className="mt-7 space-y-3"><h3 className="text-sm font-semibold">Upcoming rescheduled meals</h3>{scheduled.map((record) => <div key={record.id} className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm"><p>{record.scheduledFor} · {record.scheduledTime}</p></div>)}</div>}
+          {scheduled.length > 0 && <div className="mt-7 space-y-3"><h3 className="text-sm font-semibold">Upcoming rescheduled meals</h3>{scheduled.map((record) => <div key={record.id} className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm"><p>{record.scheduledFor} · {record.scheduledTime}</p>{record.scheduledFor === isoDate() && <p className="mt-1 text-xs text-green-400">Scheduled for today — this will appear alongside today's normal meal.</p>}</div>)}</div>}
         </section>
       </div>
     </main>
