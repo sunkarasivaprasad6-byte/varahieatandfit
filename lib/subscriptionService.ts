@@ -1,42 +1,21 @@
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import { DELIVERY_SLOT_CAPACITY, type DeliverySlot } from "@/lib/deliverySlotService";
+import { activateDeliverySlotReservation, releaseDeliverySlotReservation, reserveDeliverySlot, type DeliverySlot } from "@/lib/deliverySlotService";
 
 export type SkippedMealRecord = { id: string; skippedAt: string; expiresAt: string; scheduledFor?: string; scheduledTime?: string; status: "AVAILABLE" | "SCHEDULED" | "USED" | "EXPIRED" };
-
-export type Subscription = {
-  id?: string;
-  userId: string;
-  customerName: string;
-  phone: string;
-  planId: string;
-  planName: string;
-  amount: number;
-  status: "PENDING_PAYMENT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
-  startDate: string;
-  endDate: string;
-  deliverySlot: DeliverySlot;
-  deliveryTime: string;
-  address: string;
-  proteinPerMeal: number;
-  caloriesPerMeal: number;
-  instructions: string;
-  skippedMeals: number;
-  skippedMealRecords?: SkippedMealRecord[];
-  paymentOrderId?: string;
-  paymentId?: string;
-  paymentStatus?: "PENDING" | "SUCCESS" | "FAILED";
-  paymentVerifiedAt?: unknown;
-  paymentFailedAt?: unknown;
-  createdAt?: unknown;
-  updatedAt?: unknown;
-};
+export type Subscription = { id?: string; userId: string; customerName: string; phone: string; planId: string; planName: string; amount: number; status: "PENDING_PAYMENT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED"; startDate: string; endDate: string; deliverySlot: DeliverySlot; deliveryTime: string; address: string; proteinPerMeal: number; caloriesPerMeal: number; instructions: string; skippedMeals: number; skippedMealRecords?: SkippedMealRecord[]; paymentOrderId?: string; paymentId?: string; paymentStatus?: "PENDING" | "SUCCESS" | "FAILED"; paymentVerifiedAt?: unknown; paymentFailedAt?: unknown; slotReservationId?: string; slotReservationExpiresAt?: string; createdAt?: unknown; updatedAt?: unknown };
 
 export async function createSubscriptionDraft(data: Omit<Subscription, "id" | "createdAt" | "updatedAt">) {
   if (!data.deliverySlot) throw new Error("Please select a delivery slot");
   if (!data.customerName.trim()) throw new Error("Customer name is required");
   if (!/^[6-9]\d{9}$/.test(data.phone)) throw new Error("Enter a valid 10-digit phone number");
   const ref = await addDoc(collection(db, "subscriptions"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  try {
+    const reservation = await reserveDeliverySlot(data.deliverySlot, ref.id);
+    await updateDoc(ref, { slotReservationId: reservation.reservationId, slotReservationExpiresAt: reservation.expiresAt, updatedAt: serverTimestamp() });
+  } catch (error) {
+    throw error;
+  }
   return ref.id;
 }
 
@@ -55,31 +34,21 @@ export function subscribeToActiveSubscription(userId: string, callback: (value: 
   const q = query(collection(db, "subscriptions"), where("userId", "==", userId), where("status", "==", "ACTIVE"));
   return onSnapshot(q, (snap) => {
     if (snap.empty) return callback(null);
-    const d = snap.docs[0];
-    const subscription = { id: d.id, ...(d.data() as Omit<Subscription, "id">) } as Subscription;
+    const d = snap.docs[0]; const subscription = { id: d.id, ...(d.data() as Omit<Subscription, "id">) } as Subscription;
     if (isExpired(subscription)) { updateDoc(doc(db, "subscriptions", d.id), { status: "COMPLETED", updatedAt: serverTimestamp() }).catch(console.error); return callback(null); }
     callback(subscription);
   });
 }
 
 export async function activateSubscription(id: string, payment?: { orderId?: string; paymentId?: string }) {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Sign in required");
-  const ref = doc(db, "subscriptions", id);
-  const currentSnap = await getDoc(ref);
+  const user = auth.currentUser; if (!user) throw new Error("Sign in required");
+  const ref = doc(db, "subscriptions", id); const currentSnap = await getDoc(ref);
   if (!currentSnap.exists() || currentSnap.data().userId !== user.uid) throw new Error("Subscription not found");
   const current = currentSnap.data() as Subscription;
   if (current.status === "CANCELLED" || current.status === "COMPLETED") throw new Error("This subscription can no longer be activated");
   if (current.status === "ACTIVE") return;
-
-  // Firestore client transactions cannot read a Query directly. Check the current
-  // slot occupancy before the atomic subscription update; the server-side payment
-  // verification remains the final activation gate.
-  const activeSnap = await getDocs(query(collection(db, "subscriptions"), where("status", "==", "ACTIVE"), where("deliverySlot", "==", current.deliverySlot)));
-  if (activeSnap.docs.filter((item) => item.id !== id).length >= DELIVERY_SLOT_CAPACITY) {
-    throw new Error(`The ${current.deliverySlot} delivery slot is full. Please choose another slot.`);
-  }
-
+  if (!current.slotReservationId) throw new Error("Your delivery slot reservation is missing. Please restart checkout.");
+  await activateDeliverySlotReservation(current.slotReservationId);
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(ref);
     if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found");
@@ -94,6 +63,8 @@ export async function markSubscriptionPaymentFailed(id: string) {
   const user = auth.currentUser; if (!user) throw new Error("Sign in required");
   const ref = doc(db, "subscriptions", id); const snap = await getDoc(ref);
   if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found");
+  const data = snap.data() as Subscription;
+  await releaseDeliverySlotReservation(data.slotReservationId);
   await updateDoc(ref, { status: "CANCELLED", paymentStatus: "FAILED", paymentFailedAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 
