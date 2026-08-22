@@ -21,14 +21,7 @@ export type Subscription = {
   skippedMeals: number;
   paymentOrderId?: string;
   paymentStatus?: "PENDING" | "SUCCESS" | "FAILED";
-  skippedMealRecords?: Array<{
-    id: string;
-    skippedAt: string;
-    expiresAt: string;
-    scheduledFor?: string;
-    scheduledTime?: string;
-    status: "AVAILABLE" | "SCHEDULED" | "USED" | "EXPIRED";
-  }>;
+  skippedMealRecords?: Array<{ id: string; skippedAt: string; expiresAt: string; scheduledFor?: string; scheduledTime?: string; status: "AVAILABLE" | "SCHEDULED" | "USED" | "EXPIRED" }>;
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -54,6 +47,17 @@ export function subscribeToActiveSubscription(userId: string, callback: (value: 
   });
 }
 
+export function subscribeToCurrentSubscription(userId: string, callback: (value: Subscription | null) => void) {
+  const q = query(collection(db, "subscriptions"), where("userId", "==", userId));
+  return onSnapshot(q, (snap) => {
+    if (snap.empty) return callback(null);
+    const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) })) as Subscription[];
+    const rank: Record<Subscription["status"], number> = { ACTIVE: 5, PAUSED: 4, PENDING_PAYMENT: 3, COMPLETED: 2, CANCELLED: 1 };
+    items.sort((a, b) => (rank[b.status] - rank[a.status]) || String(b.startDate).localeCompare(String(a.startDate)));
+    callback(items[0] || null);
+  });
+}
+
 export async function getSubscription(id: string) {
   const snap = await getDoc(doc(db, "subscriptions", id));
   if (!snap.exists()) return null;
@@ -66,18 +70,9 @@ export async function activateSubscription(id: string, paymentOrderId?: string) 
   const ref = doc(db, "subscriptions", id);
   const snap = await getDoc(ref);
   if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found");
-
   const data = snap.data() as Partial<Subscription>;
-  if (paymentOrderId && data.paymentOrderId && data.paymentOrderId !== paymentOrderId) {
-    throw new Error("Payment order does not match this subscription");
-  }
-
-  await updateDoc(ref, {
-    status: "ACTIVE",
-    paymentStatus: "SUCCESS",
-    ...(paymentOrderId ? { paymentOrderId } : {}),
-    updatedAt: serverTimestamp(),
-  });
+  if (paymentOrderId && data.paymentOrderId && data.paymentOrderId !== paymentOrderId) throw new Error("Payment order does not match this subscription");
+  await updateDoc(ref, { status: "ACTIVE", paymentStatus: "SUCCESS", ...(paymentOrderId ? { paymentOrderId } : {}), updatedAt: serverTimestamp() });
 }
 
 export async function updateSubscription(id: string, data: Partial<Subscription>) {
