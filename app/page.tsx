@@ -12,6 +12,7 @@ import Footer from "@/components/Footer";
 import FloatingContact from "@/components/FloatingContact";
 import OfferBanner from "@/components/OfferBanner";
 import TrustAndFounderSection from "@/components/TrustAndFounderSection";
+import RestaurantAvailabilityBanner from "@/components/RestaurantStatus/RestaurantAvailabilityBanner";
 
 export default function Home() {
   return (
@@ -21,6 +22,7 @@ export default function Home() {
       <Hero />
       <PrioritySection />
       <SubscriptionSection />
+      <RestaurantAvailabilityBanner />
       <FeaturedFoods />
       <MenuSection />
       <WhyChooseUs />
