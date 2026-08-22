@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import {
   activateSubscription,
@@ -12,14 +12,15 @@ import {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function waitForAuthenticatedUser(timeoutMs = 10000) {
-  if (auth.currentUser) return auth.currentUser;
+async function waitForAuthenticatedUser(timeoutMs = 10000): Promise<User | null> {
+  const currentUser = auth.currentUser;
+  if (currentUser) return currentUser;
 
-  return new Promise<NonNullable<typeof auth.currentUser> | null>((resolve) => {
+  return new Promise<User | null>((resolve) => {
     let finished = false;
     let unsubscribe: (() => void) | undefined;
 
-    const finish = (user: NonNullable<typeof auth.currentUser> | null) => {
+    const finish = (user: User | null) => {
       if (finished) return;
       finished = true;
       unsubscribe?.();
