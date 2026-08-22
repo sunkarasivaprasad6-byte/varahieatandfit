@@ -110,6 +110,32 @@ export async function activateDeliverySlotReservation(reservationId?: string) {
   });
 }
 
+/** Move an active subscriber between the three fixed delivery slots atomically. */
+export async function changeActiveDeliverySlot(subscriptionId: string, nextSlot: DeliverySlot) {
+  if (!DELIVERY_SLOTS.includes(nextSlot)) throw new Error("Invalid delivery slot");
+  const subscriptionRef = doc(db, "subscriptions", subscriptionId);
+  await runTransaction(db, async (tx) => {
+    const subscriptionSnap = await tx.get(subscriptionRef);
+    if (!subscriptionSnap.exists()) throw new Error("Subscription not found");
+    const subscription = subscriptionSnap.data() as { status?: string; deliverySlot?: DeliverySlot };
+    if (subscription.status !== "ACTIVE") throw new Error("Only active subscriptions can change delivery slots");
+    const currentSlot = subscription.deliverySlot;
+    if (!currentSlot || currentSlot === nextSlot) return;
+
+    const nextCounterRef = counterRef(nextSlot);
+    const currentCounterRef = counterRef(currentSlot);
+    const [nextSnap, currentSnap] = await Promise.all([tx.get(nextCounterRef), tx.get(currentCounterRef)]);
+    const next = (nextSnap.data() || { activeCount: 0, reservedCount: 0 }) as SlotCounter;
+    const current = (currentSnap.data() || { activeCount: 0, reservedCount: 0 }) as SlotCounter;
+    if ((next.activeCount || 0) + (next.reservedCount || 0) >= DELIVERY_SLOT_CAPACITY) {
+      throw new Error(`The ${nextSlot} delivery slot is full. Please choose another slot.`);
+    }
+    tx.set(nextCounterRef, { ...next, activeCount: (next.activeCount || 0) + 1, initialized: true, updatedAt: serverTimestamp() });
+    tx.set(currentCounterRef, { ...current, activeCount: Math.max(0, (current.activeCount || 0) - 1), initialized: true, updatedAt: serverTimestamp() });
+    tx.update(subscriptionRef, { deliverySlot: nextSlot, deliveryTime: nextSlot, updatedAt: serverTimestamp() });
+  });
+}
+
 export async function reconcileDeliverySlotCounters() {
   await releaseExpiredReservations();
   for (const slot of DELIVERY_SLOTS) await ensureCounter(slot);
