@@ -190,7 +190,7 @@ export default function MySubscription() {
         <div className="text-center">
           <h1 className="text-3xl font-bold">No active subscription</h1>
           <p className="mt-3 text-white/45">Choose a weekly plan to get started.</p>
-          <Link href="/subscriptions#plans" className="mt-6 inline-flex rounded-full bg-[#E63946] px-6 py-3 font-bold">Explore Plans</Link>
+          <Link href="/#subscriptions" className="mt-6 inline-flex rounded-full bg-[#E63946] px-6 py-3 font-bold">Explore Plans</Link>
         </div>
       </main>
     );
@@ -204,7 +204,7 @@ export default function MySubscription() {
             <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#E63946]">My Subscription</p>
             <h1 className="mt-3 text-4xl font-bold">{sub.planName} <span className="text-sm font-normal text-green-400">● ACTIVE</span></h1>
           </div>
-          <Link href="/subscriptions#plans" className="rounded-full border border-white/10 px-5 py-2 text-sm text-white/60 hover:text-white">Explore plans</Link>
+          <Link href="/#subscriptions" className="rounded-full border border-white/10 px-5 py-2 text-sm text-white/60 hover:text-white">Explore plans</Link>
         </div>
 
         <div className="mt-8 grid gap-5 lg:grid-cols-[1fr_300px]">
