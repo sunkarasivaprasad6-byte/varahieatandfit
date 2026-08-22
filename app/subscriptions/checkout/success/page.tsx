@@ -12,6 +12,28 @@ import {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function waitForAuthenticatedUser(timeoutMs = 10000) {
+  if (auth.currentUser) return auth.currentUser;
+
+  return new Promise<NonNullable<typeof auth.currentUser> | null>((resolve) => {
+    let finished = false;
+    let unsubscribe: (() => void) | undefined;
+
+    const finish = (user: NonNullable<typeof auth.currentUser> | null) => {
+      if (finished) return;
+      finished = true;
+      unsubscribe?.();
+      resolve(user);
+    };
+
+    unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) finish(user);
+    });
+
+    window.setTimeout(() => finish(auth.currentUser), timeoutMs);
+  });
+}
+
 export default function SuccessPage() {
   return (
     <Suspense fallback={null}>
@@ -30,7 +52,6 @@ function SuccessContent() {
 
   useEffect(() => {
     let cancelled = false;
-    let unsubscribeAuth: (() => void) | undefined;
 
     async function confirmPayment() {
       if (!subscriptionId || !orderId) {
@@ -53,22 +74,20 @@ function SuccessContent() {
           const data = await response.json();
           latest = data;
 
-          if (data.status === "SUCCESS") break;
-          if (data.status === "FAILED") break;
+          if (data.status === "SUCCESS" || data.status === "FAILED") break;
           await wait(2000);
         }
 
         if (cancelled) return;
 
+        const user = await waitForAuthenticatedUser();
+        if (!user) {
+          setStatus("Your payment was verified, but your sign-in session is not ready. Please open My Subscription after signing in again.");
+          return;
+        }
+
         if (latest?.status === "SUCCESS") {
           setStatus("Payment confirmed. Activating your subscription...");
-
-          // Firebase auth can take a moment to restore after the Cashfree redirect.
-          if (!auth.currentUser) {
-            await new Promise<void>((resolve) => {
-              unsubscribeAuth = onAuthStateChanged(auth, () => resolve());
-            });
-          }
 
           await activateSubscription(subscriptionId, {
             orderId,
@@ -103,10 +122,8 @@ function SuccessContent() {
     }
 
     confirmPayment();
-
     return () => {
       cancelled = true;
-      unsubscribeAuth?.();
     };
   }, [subscriptionId, orderId]);
 
