@@ -1,63 +1,32 @@
 "use client";
-
 export const dynamic = "force-dynamic";
-
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  MapPin,
-  MessageSquare,
-  ShieldCheck,
-  LocateFixed,
-  CheckCircle2,
-  ExternalLink,
-} from "lucide-react";
+import { auth } from "@/lib/firebase";
 import { DAYS, getPlan } from "@/lib/subscriptionData";
 import { createSubscriptionDraft } from "@/lib/subscriptionService";
+import { DELIVERY_SLOTS, getDeliverySlotAvailability, type DeliverySlot } from "@/lib/deliverySlotService";
 import { toast } from "react-hot-toast";
+import { CheckCircle2, ChevronLeft, ExternalLink, LocateFixed, MapPin, MessageSquare, ShieldCheck } from "lucide-react";
 
-const steps = [
-  "Delivery time",
-  "Customize meal",
-  "Instructions",
-  "Address",
-  "Review",
-  "Payment",
-];
+type DraftState = { name: string; phone: string; slot: DeliverySlot | ""; instructions: string; address: string; protein: number; calories: number };
+const DRAFT_KEY = "varahi-subscription-checkout";
 
-function formatTime(value: string) {
-  if (!value) return "";
-  const [hourString, minute] = value.split(":");
-  const hour = Number(hourString);
-  if (!Number.isFinite(hour)) return value;
-  const suffix = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour % 12 || 12;
-  return `${displayHour}:${minute} ${suffix}`;
-}
-
-export default function SubscriptionCheckoutPage() {
-  return (
-    <Suspense fallback={null}>
-      <SubscriptionCheckoutContent />
-    </Suspense>
-  );
-}
+export default function SubscriptionCheckoutPage() { return <Suspense fallback={null}><SubscriptionCheckoutContent /></Suspense>; }
 
 function SubscriptionCheckoutContent() {
   const params = useSearchParams();
   const plan = getPlan(params.get("plan") || "silver");
-
   const [step, setStep] = useState(0);
   const [day, setDay] = useState<(typeof DAYS)[number]>("MON");
   const [userId, setUserId] = useState<string | null>(null);
-  const [deliveryTime, setDeliveryTime] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [slot, setSlot] = useState<DeliverySlot | "">("");
+  const [slots, setSlots] = useState<Awaited<ReturnType<typeof getDeliverySlotAvailability>>>([]);
   const [protein, setProtein] = useState(30);
   const [calories, setCalories] = useState(400);
   const [instructions, setInstructions] = useState("");
@@ -67,277 +36,77 @@ function SubscriptionCheckoutContent() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => onAuthStateChanged(auth, (u) => setUserId(u?.uid || null)), []);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null") as DraftState | null;
+      if (saved) { setName(saved.name || ""); setPhone(saved.phone || ""); setSlot(saved.slot || ""); setInstructions(saved.instructions || ""); setAddress(saved.address || ""); setProtein(saved.protein || 30); setCalories(saved.calories || 400); }
+    } catch {}
+    getDeliverySlotAvailability().then(setSlots).catch(() => toast.error("Unable to load delivery slot availability."));
+  }, []);
 
-  const meal = useMemo(() => {
-    if (!plan) return null;
-    return plan.meals[day.toLowerCase() as keyof typeof plan.meals];
-  }, [plan, day]);
+  const meal = useMemo(() => plan?.meals[day.toLowerCase() as keyof typeof plan.meals], [plan, day]);
+  if (!plan || !meal) return <main className="grid min-h-screen place-items-center bg-[#050505] text-white">Invalid subscription plan.</main>;
 
-  if (!plan || !meal) return null;
-
+  function saveDraft() { localStorage.setItem(DRAFT_KEY, JSON.stringify({ name, phone, slot, instructions, address, protein, calories } satisfies DraftState)); }
   function detectLocation() {
-    if (!navigator.geolocation) {
-      toast.error("Location detection is not supported by your browser.");
-      return;
-    }
-
+    if (!navigator.geolocation) { toast.error("Location detection is not supported by your browser."); return; }
     setDetectingLocation(true);
-    toast.loading("Detecting your location...", { id: "detect-location" });
-
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        const googleMapsLink = `https://www.google.com/maps?q=${coords.latitude},${coords.longitude}`;
-        setAddress(googleMapsLink);
-        setLocationDetected(true);
-        setDetectingLocation(false);
-        toast.success("Your location has been detected!", { id: "detect-location" });
-      },
-      (error) => {
-        setDetectingLocation(false);
-        const message =
-          error.code === 1
-            ? "Location permission was denied. Please allow location access."
-            : error.code === 2
-            ? "Your location could not be determined. Please try again."
-            : error.code === 3
-            ? "Location detection timed out. Please try again."
-            : "Unable to detect your location.";
-        toast.error(message, { id: "detect-location" });
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
+    navigator.geolocation.getCurrentPosition(({ coords }) => { setAddress(`https://www.google.com/maps?q=${coords.latitude},${coords.longitude}`); setLocationDetected(true); setDetectingLocation(false); toast.success("Location detected."); }, () => { setDetectingLocation(false); toast.error("Unable to detect your location. Please enter it manually."); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
   }
-
-  const isGoogleMapsLocation = address.startsWith("https://www.google.com/maps?q=");
-
+  function validateCurrentStep() {
+    if (step === 0) {
+      if (name.trim().length < 3) { toast.error("Enter your full name."); return false; }
+      if (!/^[6-9]\d{9}$/.test(phone)) { toast.error("Enter a valid 10-digit phone number."); return false; }
+      if (!slot) { toast.error("Select a delivery slot."); return false; }
+      const selected = slots.find((x) => x.slot === slot);
+      if (!selected?.available) { toast.error("That delivery slot is full. Choose another slot."); return false; }
+    }
+    if (step === 3 && address.trim().length < 10) { toast.error("Enter your delivery address or detect your location."); return false; }
+    return true;
+  }
   async function continueStep() {
-    if (step === 0 && !deliveryTime) {
-      toast.error("Enter your preferred delivery time.");
-      return;
-    }
-
-    if (step === 3 && address.trim().length < 10) {
-      toast.error("Enter your delivery address or detect your location.");
-      return;
-    }
-
-    if (step < 4) {
-      setStep(step + 1);
-      return;
-    }
-
-    if (step === 4) {
-      setStep(5);
-      return;
-    }
-
+    if (!validateCurrentStep()) return;
+    saveDraft();
+    if (step < 5) { setStep(step + 1); return; }
     await startPayment();
   }
-
   async function startPayment() {
-    if (!plan) {
-      toast.error("The selected plan could not be found. Please return to the plans page and choose a valid plan.");
-      return;
-    }
-
-    if (!userId) {
-      const returnTo = `/subscriptions/checkout?plan=${encodeURIComponent(plan.id)}`;
-      window.location.href = `/account?returnTo=${encodeURIComponent(returnTo)}`;
-      return;
-    }
-
+    if (!userId) { saveDraft(); const returnTo = `/subscriptions/checkout?plan=${encodeURIComponent(plan.id)}`; window.location.href = `/account?returnTo=${encodeURIComponent(returnTo)}`; return; }
+    if (!slot) { toast.error("Select a delivery slot."); setStep(0); return; }
     setLoading(true);
-
     try {
-      const start = new Date();
-      const end = new Date(start);
-      end.setDate(start.getDate() + 6);
-
-      const subscriptionId = await createSubscriptionDraft({
-        userId,
-        planId: plan.id,
-        planName: plan.name,
-        amount: plan.price,
-        status: "PENDING_PAYMENT",
-        startDate: start.toISOString(),
-        endDate: end.toISOString(),
-        deliveryTime: formatTime(deliveryTime),
-        address,
-        proteinPerMeal: protein,
-        caloriesPerMeal: calories,
-        instructions,
-        skippedMeals: 0,
-      });
-
-      const res = await fetch("/api/cashfree/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: plan.price,
-          customerId: userId,
-          customerName: auth.currentUser?.displayName || "Customer",
-          customerPhone: auth.currentUser?.phoneNumber || "9999999999",
-          subscriptionId,
-        }),
-      });
-
+      const selected = slots.find((x) => x.slot === slot);
+      if (!selected?.available) throw new Error("That delivery slot is now full. Please choose another slot.");
+      const start = new Date(); const end = new Date(start); end.setDate(start.getDate() + 6);
+      const subscriptionId = await createSubscriptionDraft({ userId, customerName: name.trim(), phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: start.toISOString(), endDate: end.toISOString(), deliverySlot: slot, deliveryTime: slot, address, proteinPerMeal: protein, caloriesPerMeal: calories, instructions, skippedMeals: 0 });
+      const res = await fetch("/api/cashfree/create-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: plan.price, customerId: userId, customerName: name.trim(), customerPhone: phone, subscriptionId }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to create payment");
-
-      if (data.demo) {
-        toast.error("Cashfree is not configured. Add the Cashfree keys in Vercel.");
-        return;
-      }
-
-      const script = document.createElement("script");
-      script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
-      script.onload = () => {
-        // @ts-ignore Cashfree global SDK
-        const cashfree = window.Cashfree({ mode: data.mode || "sandbox" });
-        cashfree.checkout({
-          paymentSessionId: data.paymentSessionId,
-          redirectTarget: "_self",
-        });
-      };
-      document.body.appendChild(script);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Payment setup failed");
-    } finally {
-      setLoading(false);
-    }
+      if (data.demo) throw new Error("Cashfree is not configured. Add the Cashfree keys in Vercel.");
+      localStorage.removeItem(DRAFT_KEY);
+      const script = document.createElement("script"); script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+      script.onload = () => { // @ts-ignore Cashfree global SDK
+        const cashfree = window.Cashfree({ mode: data.mode || "sandbox" }); cashfree.checkout({ paymentSessionId: data.paymentSessionId, redirectTarget: "_self" });
+      }; document.body.appendChild(script);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Payment setup failed"); } finally { setLoading(false); }
   }
 
-  return (
-    <main className="min-h-screen bg-[#050505] px-5 pb-20 pt-28 text-white">
-      <div className="mx-auto max-w-6xl">
-        <Link href="/subscriptions#plans" className="mb-8 inline-flex items-center gap-2 text-sm text-white/45 hover:text-white">
-          <ChevronLeft className="h-4 w-4" /> Plans
-        </Link>
-
-        <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
-          <section>
-            <div className="mb-8 flex items-center gap-2 overflow-x-auto pb-2">
-              {steps.map((name, index) => (
-                <div key={name} className="flex min-w-max items-center gap-2 text-xs">
-                  <span className={`flex h-7 w-7 items-center justify-center rounded-full ${
-                    index < step ? "bg-[#E63946] text-white" :
-                    index === step ? "border border-[#E63946] text-[#E63946]" :
-                    "border border-white/10 text-white/30"
-                  }`}>
-                    {index < step ? "✓" : index + 1}
-                  </span>
-                  <span className={index === step ? "text-white" : "text-white/30"}>{name}</span>
-                  {index < steps.length - 1 && <span className="mx-1 text-white/15">—</span>}
-                </div>
-              ))}
-            </div>
-
-            <div className="rounded-[32px] border border-white/10 bg-white/[0.035] p-6 sm:p-9">
-              <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#E63946]">{steps[step]}</p>
-
-              {step === 0 && (
-                <>
-                  <h1 className="mt-3 text-3xl font-bold">When should we deliver?</h1>
-                  <p className="mt-2 max-w-xl text-sm text-white/40">
-                    There are no fixed delivery slots. Enter the time you prefer and we will save it as your requested delivery time.
-                  </p>
-                  <div className="mt-8 max-w-sm">
-                    <label className="text-sm text-white/55">
-                      Your preferred delivery time
-                      <div className="mt-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-black/25 px-4 focus-within:border-[#E63946]">
-                        <Clock className="h-5 w-5 text-[#E63946]" />
-                        <input type="time" value={deliveryTime} onChange={(e) => setDeliveryTime(e.target.value)} className="w-full bg-transparent py-4 text-white outline-none" />
-                      </div>
-                    </label>
-                    <p className="mt-3 text-xs text-white/30">Example: 7:30 PM. You can enter any time you prefer.</p>
-                  </div>
-                </>
-              )}
-
-              {step === 1 && (
-                <>
-                  <h1 className="mt-3 text-3xl font-bold">Customize each meal</h1>
-                  <div className="mt-7 flex gap-2 overflow-x-auto">
-                    {DAYS.map((d) => (
-                      <button key={d} type="button" onClick={() => setDay(d)} className={`rounded-full px-5 py-2 text-xs font-bold ${day === d ? "bg-[#E63946] text-white" : "bg-white/5 text-white/50"}`}>{d}</button>
-                    ))}
-                  </div>
-                  <div className="mt-6 grid gap-6 sm:grid-cols-[180px_1fr]">
-                    <div className="relative h-44 overflow-hidden rounded-2xl"><Image src={meal.image} alt={meal.name} fill className="object-cover" sizes="180px" /></div>
-                    <div>
-                      <h2 className="text-xl font-bold">{meal.name}</h2>
-                      <p className="mt-2 text-sm text-white/45">Default: {meal.protein}g protein · {meal.calories} kcal</p>
-                      <div className="mt-5 grid grid-cols-2 gap-3">
-                        <label className="text-xs text-white/45">Protein / meal<input type="number" min="10" max="100" value={protein} onChange={(e) => setProtein(Number(e.target.value))} className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 p-3 text-white outline-none focus:border-[#E63946]" /></label>
-                        <label className="text-xs text-white/45">Calories / meal<input type="number" min="150" max="1200" value={calories} onChange={(e) => setCalories(Number(e.target.value))} className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 p-3 text-white outline-none focus:border-[#E63946]" /></label>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {step === 2 && (
-                <>
-                  <h1 className="mt-3 text-3xl font-bold">Any special instructions?</h1>
-                  <div className="mt-8"><MessageSquare className="mb-3 h-5 w-5 text-[#E63946]" /><textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Less spicy, no onion, etc." className="min-h-40 w-full rounded-2xl border border-white/10 bg-black/25 p-5 text-white outline-none placeholder:text-white/25 focus:border-[#E63946]" /></div>
-                </>
-              )}
-
-              {step === 3 && (
-                <>
-                  <h1 className="mt-3 text-3xl font-bold">Where should we deliver?</h1>
-                  <p className="mt-2 text-sm text-white/40">Enter your address manually or use your current location.</p>
-                  <div className="mt-8">
-                    <div className="mb-3 flex items-center justify-between"><div className="flex items-center gap-2"><MapPin className="h-5 w-5 text-[#E63946]" /><span className="text-sm font-medium text-white/70">Delivery location</span></div>{locationDetected && <div className="flex items-center gap-1 text-xs text-green-400"><CheckCircle2 className="h-4 w-4" />Location detected</div>}</div>
-                    <div className={`rounded-2xl border bg-black/25 ${locationDetected ? "border-green-500/30" : "border-white/10 focus-within:border-[#E63946]"}`}>
-                      <textarea value={address} onChange={(e) => { setAddress(e.target.value); setLocationDetected(false); }} placeholder="Enter your full delivery address..." className="min-h-36 w-full resize-none bg-transparent p-5 text-white outline-none placeholder:text-white/25" />
-                      {isGoogleMapsLocation && <div className="mx-4 mb-4 rounded-xl border border-white/10 bg-white/[0.035] p-4"><p className="text-sm font-semibold">Current location detected</p><p className="mt-1 text-xs text-white/35">Your Google Maps location link has been saved.</p><a href={address} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-[#E63946]">View location in Google Maps <ExternalLink className="h-3.5 w-3.5" /></a></div>}
-                    </div>
-                    <button type="button" onClick={detectLocation} disabled={detectingLocation} className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#E63946]/40 bg-[#E63946]/10 px-5 py-4 text-sm font-bold text-[#E63946] disabled:opacity-50"><LocateFixed className="h-5 w-5" />{detectingLocation ? "Detecting your location..." : locationDetected ? "Detect My Location Again" : "Detect My Location"}</button>
-                  </div>
-                </>
-              )}
-
-              {step === 4 && (
-                <>
-                  <h1 className="mt-3 text-3xl font-bold">Review your subscription</h1>
-                  <div className="mt-8 space-y-4 text-sm text-white/60">
-                    <p><b className="text-white">Plan:</b> {plan.name} · ₹{plan.price}/week</p>
-                    <p><b className="text-white">Delivery:</b> {formatTime(deliveryTime)}</p>
-                    <p><b className="text-white">Nutrition:</b> {protein}g protein · {calories} kcal per meal</p>
-                    <div><b className="text-white">Address:</b>{isGoogleMapsLocation ? <a href={address} target="_blank" rel="noopener noreferrer" className="mt-2 block text-[#E63946] hover:underline">Open Google Maps location</a> : <p className="mt-2 text-white/50">{address}</p>}</div>
-                    <p><b className="text-white">Instructions:</b> {instructions || "None"}</p>
-                  </div>
-                </>
-              )}
-
-              {step === 5 && (
-                <>
-                  <h1 className="mt-3 text-3xl font-bold">Secure payment</h1>
-                  <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-6"><div className="flex items-center gap-3 text-sm text-white/65"><ShieldCheck className="h-5 w-5 text-green-400" />One-time payment · ₹{plan.price}</div><p className="mt-4 text-sm leading-6 text-white/35">{userId ? "You'll be securely redirected to Cashfree Checkout." : "You must sign in before payment. You will be returned here automatically."}</p></div>
-                </>
-              )}
-
-              <div className="mt-10 flex justify-between gap-3">
-                <button type="button" disabled={step === 0} onClick={() => setStep(Math.max(0, step - 1))} className="rounded-full border border-white/10 px-6 py-3 text-sm disabled:opacity-20">Back</button>
-                <button type="button" disabled={loading || detectingLocation} onClick={continueStep} className="inline-flex items-center gap-2 rounded-full bg-[#E63946] px-7 py-3 text-sm font-bold disabled:opacity-50">{loading ? "Preparing..." : step === 5 ? (userId ? `Pay ₹${plan.price}` : "Sign in & continue") : "Continue"}{step < 5 && <ChevronRight className="h-4 w-4" />}</button>
-              </div>
-            </div>
-          </section>
-
-          <aside className="h-fit rounded-[28px] border border-white/10 bg-[#0D0B0B] p-6">
-            <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#E63946]">Summary</p>
-            <h2 className="mt-3 text-2xl font-bold">{plan.name} Plan</h2>
-            <p className="mt-1 text-sm text-white/40">7-day nutrition plan</p>
-            <div className="my-7 border-y border-white/10 py-5">
-              <div className="flex justify-between text-sm"><span className="text-white/45">Weekly total</span><b>₹{plan.price}</b></div>
-              <div className="mt-3 flex justify-between text-sm"><span className="text-white/45">Requested delivery</span><span>{deliveryTime ? formatTime(deliveryTime) : "Not selected"}</span></div>
-              {locationDetected && <div className="mt-4 flex items-center gap-2 text-xs text-green-400"><CheckCircle2 className="h-4 w-4" />Location detected</div>}
-            </div>
-            <p className="text-xs leading-5 text-white/35">Your selections are saved with the subscription draft and finalized after payment confirmation.</p>
-          </aside>
-        </div>
-      </div>
-    </main>
-  );
+  const isMap = address.startsWith("https://www.google.com/maps?q=");
+  const steps = ["Customer & slot", "Meal", "Instructions", "Location", "Review", "Payment"];
+  return <main className="min-h-screen bg-[#050505] px-5 pb-20 pt-24 text-white"><div className="mx-auto max-w-6xl">
+    <Link href="/#subscriptions" className="mb-8 inline-flex items-center gap-2 text-sm text-white/45 hover:text-white"><ChevronLeft className="h-4 w-4"/> Plans</Link>
+    <div className="mb-8 flex gap-3 overflow-x-auto pb-2">{steps.map((s,i)=><div key={s} className="flex min-w-max items-center gap-2 text-xs"><span className={`grid h-7 w-7 place-items-center rounded-full ${i<step?"bg-[#E63946]":i===step?"border border-[#E63946] text-[#E63946]":"border border-white/10 text-white/30"}`}>{i<step?"✓":i+1}</span><span className={i===step?"text-white":"text-white/30"}>{s}</span></div>)}</div>
+    <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
+      <section className="rounded-[32px] border border-white/10 bg-white/[0.035] p-6 sm:p-9">
+        <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#E63946]">{steps[step]}</p>
+        {step===0&&<><h1 className="mt-3 text-3xl font-bold">Your details & delivery slot</h1><p className="mt-2 text-sm text-white/40">We collect your name and phone number before your delivery location.</p><div className="mt-7 grid gap-4 sm:grid-cols-2"><label className="text-sm text-white/55">Full name<input value={name} onChange={e=>setName(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 p-4 outline-none focus:border-[#E63946]" placeholder="Your full name"/></label><label className="text-sm text-white/55">Phone number<input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,"").slice(0,10))} inputMode="numeric" className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 p-4 outline-none focus:border-[#E63946]" placeholder="10-digit mobile number"/></label></div><h2 className="mt-8 text-xl font-bold">Choose a delivery slot</h2><div className="mt-4 grid gap-3">{DELIVERY_SLOTS.map(s=>{const info=slots.find(x=>x.slot===s);const full=info ? !info.available : false;return <button key={s} type="button" disabled={full} onClick={()=>setSlot(s)} className={`flex items-center justify-between rounded-2xl border p-4 text-left ${full?"cursor-not-allowed border-red-500/20 bg-red-500/5 opacity-60":slot===s?"border-[#E63946] bg-[#E63946]/10":"border-white/10 bg-black/20 hover:border-white/20"}`}><span><b>{s}</b><span className="mt-1 block text-xs text-white/40">{info?`${info.count}/${info.capacity} members · ${info.remaining} spots left`:"Loading capacity..."}</span></span><span className={`rounded-full px-3 py-1 text-xs font-bold ${full?"bg-red-500/10 text-red-300":"bg-green-500/10 text-green-300"}`}>{full?"Unavailable":"Available"}</span></button>})}</div></>}
+        {step===1&&<><h1 className="mt-3 text-3xl font-bold">Your weekly meals</h1><div className="mt-6 flex gap-2 overflow-x-auto">{DAYS.map(d=><button key={d} onClick={()=>setDay(d)} className={`rounded-full px-5 py-2 text-xs font-bold ${day===d?"bg-[#E63946]":"bg-white/5 text-white/50"}`}>{d}</button>)}</div><div className="mt-6 grid gap-6 sm:grid-cols-[220px_1fr]"><div className="relative h-52 overflow-hidden rounded-2xl"><Image src={meal.image} alt={meal.name} fill className="object-cover" sizes="220px"/></div><div><h2 className="text-2xl font-bold">{meal.name}</h2><p className="mt-2 text-sm text-white/45">{meal.protein}g protein · {meal.calories} kcal</p><div className="mt-5 grid grid-cols-2 gap-3"><label className="text-xs text-white/45">Protein<input type="number" min="10" max="100" value={protein} onChange={e=>setProtein(Number(e.target.value))} className="mt-2 w-full rounded-xl bg-black/30 p-3"/></label><label className="text-xs text-white/45">Calories<input type="number" min="150" max="1200" value={calories} onChange={e=>setCalories(Number(e.target.value))} className="mt-2 w-full rounded-xl bg-black/30 p-3"/></label></div></div></div></>}
+        {step===2&&<><h1 className="mt-3 text-3xl font-bold">Special instructions</h1><div className="mt-8"><MessageSquare className="mb-3 h-5 w-5 text-[#E63946]"/><textarea value={instructions} onChange={e=>setInstructions(e.target.value)} placeholder="Less spicy, no onion, etc." className="min-h-40 w-full rounded-2xl border border-white/10 bg-black/25 p-5 outline-none focus:border-[#E63946]"/></div></>}
+        {step===3&&<><h1 className="mt-3 text-3xl font-bold">Delivery location</h1><p className="mt-2 text-sm text-white/40">Your name and phone have already been collected.</p><div className="mt-7"><div className="flex items-center gap-2 text-sm text-white/60"><MapPin className="h-5 w-5 text-[#E63946]"/>Address / location</div><textarea value={address} onChange={e=>{setAddress(e.target.value);setLocationDetected(false)}} placeholder="Enter your full delivery address..." className="mt-3 min-h-36 w-full rounded-2xl border border-white/10 bg-black/25 p-5 outline-none focus:border-[#E63946]"/>{isMap&&<a href={address} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-xs text-[#E63946]">Open detected location <ExternalLink className="h-3.5 w-3.5"/></a>}<button type="button" onClick={detectLocation} disabled={detectingLocation} className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#E63946]/40 bg-[#E63946]/10 p-4 font-bold text-[#E63946]"><LocateFixed className="h-5 w-5"/>{detectingLocation?"Detecting...":locationDetected?"Location detected":"Detect My Location"}</button></div></>}
+        {step===4&&<><h1 className="mt-3 text-3xl font-bold">Review</h1><div className="mt-7 space-y-4 rounded-2xl bg-black/20 p-6 text-sm text-white/65"><p><b className="text-white">Customer:</b> {name} · {phone}</p><p><b className="text-white">Plan:</b> {plan.name} · ₹{plan.price}/week</p><p><b className="text-white">Delivery slot:</b> {slot}</p><p><b className="text-white">Address:</b> {isMap?<a href={address} target="_blank" rel="noreferrer" className="text-[#E63946]">Open Google Maps location</a>:address}</p><p><b className="text-white">Meal:</b> {meal.name}</p><p><b className="text-white">Instructions:</b> {instructions||"None"}</p></div></>}
+        {step===5&&<><h1 className="mt-3 text-3xl font-bold">Secure payment</h1><div className="mt-7 rounded-2xl border border-white/10 bg-black/20 p-6"><div className="flex gap-3"><ShieldCheck className="h-6 w-6 text-green-400"/><div><b>Cashfree secure checkout</b><p className="mt-1 text-sm text-white/40">Your subscription activates only after Cashfree confirms payment.</p></div></div></div></>}
+        <div className="mt-8 flex justify-between gap-3"><button type="button" disabled={step===0||loading} onClick={()=>setStep(s=>s-1)} className="rounded-full border border-white/10 px-6 py-3 text-sm font-bold disabled:opacity-30">Back</button><button type="button" disabled={loading} onClick={continueStep} className="rounded-full bg-[#E63946] px-7 py-3 font-bold">{loading?"Opening payment...":step===5?"Continue to Payment":"Continue"}</button></div>
+      </section>
+      <aside className="h-fit rounded-[28px] border border-white/10 bg-[#171717] p-6"><p className="text-xs uppercase tracking-[0.25em] text-white/35">Selected plan</p><h2 className="mt-2 text-2xl font-bold">{plan.name}</h2><p className="mt-1 text-sm text-white/45">₹{plan.price} / week</p><div className="relative mt-6 h-48 overflow-hidden rounded-2xl"><Image src={meal.image} alt={meal.name} fill className="object-cover" sizes="340px"/></div><p className="mt-4 text-sm font-semibold">{meal.name}</p><p className="mt-1 text-xs text-white/40">{meal.protein}g protein · {meal.calories} kcal</p><div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/45">Delivery: <b className="text-white">{slot||"Choose a slot"}</b></div></aside>
+    </div></div></main>;
 }
