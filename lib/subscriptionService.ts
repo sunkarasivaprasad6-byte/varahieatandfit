@@ -20,6 +20,7 @@ export type Subscription = {
   instructions: string;
   skippedMeals: number;
   paymentOrderId?: string;
+  paymentAttemptId?: string;
   paymentStatus?: "PENDING" | "SUCCESS" | "FAILED";
   skippedMealRecords?: Array<{ id: string; skippedAt: string; expiresAt: string; scheduledFor?: string; scheduledTime?: string; status: "AVAILABLE" | "SCHEDULED" | "USED" | "EXPIRED" }>;
   createdAt?: unknown;
