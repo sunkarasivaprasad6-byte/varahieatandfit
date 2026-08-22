@@ -1,5 +1,6 @@
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
+import { createNotification } from "@/lib/notificationService";
 
 export type Subscription = {
   id?: string;
@@ -87,7 +88,18 @@ export async function updateSubscription(id: string, data: Partial<Subscription>
   const configuredAdmins = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean) || ["sunkarasivaprasad6@gmail.com"];
   const isAdmin = !!adminEmail && configuredAdmins.includes(adminEmail);
   if (!isOwner && !isAdmin) throw new Error("Not authorized");
+
+  const previousStatus = String(snap.data().status || "");
   await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
+
+  if (isAdmin && data.status && String(data.status) !== previousStatus) {
+    try {
+      const labels: Record<string, string> = { ACTIVE: "active", PAUSED: "paused", CANCELLED: "cancelled", COMPLETED: "completed", PENDING_PAYMENT: "waiting for payment" };
+      await createNotification({ userId: ownerId, title: `Subscription ${labels[data.status] || data.status.toLowerCase()}`, message: `${String(snap.data().planName || "Your subscription")} was updated by Varahi Eat & Fit to ${labels[data.status] || data.status.toLowerCase()}.`, type: "SUBSCRIPTION" });
+    } catch (error) {
+      console.error("Unable to create admin subscription notification", error);
+    }
+  }
 }
 
 export async function listSubscriptions() {
