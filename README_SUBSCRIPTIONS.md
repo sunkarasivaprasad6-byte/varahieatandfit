@@ -48,5 +48,3 @@ Configure Cashfree Payment Gateway webhook events for payment success, failed an
 
 ## Important
 Production Cashfree merchant credentials and the Firebase service-account credentials must be supplied by the business owner. Never commit `.env.local`, service-account JSON, or payment secrets.
-
-Cashfree's current documentation recommends checking the payment status after redirect and using verified webhooks for asynchronous payment updates. citeturn0search1turn1search0turn1search9
