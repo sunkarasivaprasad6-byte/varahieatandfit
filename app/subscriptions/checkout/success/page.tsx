@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { activateSubscription, getSubscription } from "@/lib/subscriptionService";
-import { createNotification } from "@/lib/notificationService";
 import { auth } from "@/lib/firebase";
 
 export default function SuccessPage() {
@@ -14,7 +12,7 @@ export default function SuccessPage() {
 function SuccessContent() {
   const params = useSearchParams();
   const subscriptionId = params.get("subscriptionId");
-  const orderId = params.get("orderId");
+  const orderId = params.get("orderId") || params.get("order_id");
   const [status, setStatus] = useState("Checking payment…");
   const [attempt, setAttempt] = useState(0);
 
@@ -22,29 +20,30 @@ function SuccessContent() {
     let cancelled = false;
     async function confirmPayment() {
       if (!subscriptionId || !orderId) { setStatus("Missing payment confirmation details."); return; }
-      try {
-        const sub = await getSubscription(subscriptionId);
-        if (!sub || sub.userId !== auth.currentUser?.uid) throw new Error("Subscription not found");
-        if (sub.paymentOrderId && sub.paymentOrderId !== orderId) throw new Error("Payment order mismatch");
+      if (!auth.currentUser) { setStatus("Please sign in again to view the payment result."); return; }
 
-        const response = await fetch(`/api/cashfree/status?orderId=${encodeURIComponent(orderId)}`, { cache: "no-store" });
+      try {
+        const response = await fetch("/api/cashfree/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subscriptionId, orderId }),
+          cache: "no-store",
+        });
         const data = await response.json();
         if (cancelled) return;
 
         if (data.status === "SUCCESS") {
-          await activateSubscription(subscriptionId, orderId);
-          try { await createNotification({ userId: sub.userId, title: "Subscription activated", message: `${sub.planName} is active. Your requested delivery time is ${sub.deliveryTime || "not set"}.`, type: "PAYMENT" }); } catch {}
-          if (!cancelled) setStatus("Payment confirmed. Your subscription is active.");
+          setStatus("Payment confirmed. Your subscription is active.");
           return;
         }
 
-        if (data.status === "PENDING" && attempt < 5) {
+        if (data.status === "PENDING" && attempt < 7) {
           setStatus("Payment is still being confirmed…");
           setTimeout(() => setAttempt((value) => value + 1), 2500);
           return;
         }
 
-        setStatus(data.status === "FAILED" ? "Payment was not successful. Your subscription is still pending." : "Payment is still being confirmed. Please check My Subscription shortly.");
+        setStatus(data.status === "FAILED" ? "Payment was not successful. You can retry the payment from My Subscription." : (data.error || "Payment is still being confirmed. Please check My Subscription shortly."));
       } catch (error) {
         console.error(error);
         if (!cancelled) setStatus(error instanceof Error ? error.message : "We could not confirm the payment yet.");
