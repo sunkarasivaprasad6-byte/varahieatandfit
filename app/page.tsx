@@ -11,37 +11,24 @@ import CtaSection from "@/components/CtaSection";
 import Footer from "@/components/Footer";
 import FloatingContact from "@/components/FloatingContact";
 import OfferBanner from "@/components/OfferBanner";
+import TrustAndFounderSection from "@/components/TrustAndFounderSection";
 
 export default function Home() {
   return (
     <>
       <Navbar />
-
       <OfferBanner />
-
       <Hero />
-
-      {/* Priority Audience */}
       <PrioritySection />
-
       <SubscriptionSection />
-      
-
-      {/* Existing sections */}
       <FeaturedFoods />
-
       <MenuSection />
-
       <WhyChooseUs />
-
+      <TrustAndFounderSection />
       <GallerySection />
-
       <Testimonials />
-
       <CtaSection />
-
       <Footer />
-
       <FloatingContact />
     </>
   );
