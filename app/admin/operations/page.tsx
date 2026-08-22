@@ -1,200 +1,44 @@
 "use client";
-
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { listSubscriptions, type Subscription, updateSubscription } from "@/lib/subscriptionService";
 import { getPlan } from "@/lib/subscriptionData";
-import { getOrders, updateOrderStatus, verifyDeliveryOtp } from "@/lib/orderService";
-import type { Order, OrderStatus } from "@/types/order";
+import { getOrders, updateOrderStatus } from "@/lib/orderService";
+import type { Order } from "@/types/order";
+import { DELIVERY_SLOTS, DELIVERY_SLOT_CAPACITY, getDeliverySlotCounts } from "@/lib/deliverySlotService";
 
-const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
-const TIMES = ["5:00 PM – 6:00 PM", "6:00 PM – 7:00 PM", "7:00 PM – 8:00 PM"];
-const ORDER_STATUSES: OrderStatus[] = ["NEW", "PAYMENT_PENDING", "PAYMENT_VERIFIED", "CONFIRMED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "OTP_PENDING", "DELIVERED", "CANCELLED"];
+type DeliveryStatus = "PENDING" | "DELIVERED";
+type DeliveryRow = { id:string; source:"SUBSCRIPTION"|"SCHEDULED_MEAL"|"ORDER"; customerName:string; customerId:string; phone:string; planOrType:string; meal:string; time:string; address:string; status:DeliveryStatus; orderId?:string; subscriptionId?:string; skipId?:string };
+const records = (s:Subscription) => s.skippedMealRecords || [];
+const statusMap = (s:Subscription) => (s as Subscription & {deliveryStatusByDate?:Record<string,DeliveryStatus>}).deliveryStatusByDate || {};
+const today = () => new Date().toISOString().slice(0,10);
+const weekday = () => ["SUN","MON","TUE","WED","THU","FRI","SAT"][new Date().getDay()];
 
-type SkipRecord = {
-  id: string;
-  skippedAt: string;
-  expiresAt: string;
-  scheduledFor?: string;
-  scheduledTime?: string;
-  status: "AVAILABLE" | "SCHEDULED" | "USED" | "EXPIRED";
-};
-
-type Slot = { id?: string; label: string; active: boolean; cutoffMinutes: number };
-type MealSchedule = { id?: string; planId: string; day: string; name: string; image: string; calories: number; protein: number; active: boolean };
-
-function daysLeft(date: string) {
-  return Math.max(0, Math.ceil((new Date(date).getTime() - Date.now()) / 86400000));
+export default function AdminOperationsPage(){
+ const [checking,setChecking]=useState(true),[loading,setLoading]=useState(true),[subs,setSubs]=useState<Subscription[]>([]),[orders,setOrders]=useState<Order[]>([]),[counts,setCounts]=useState<Record<string,number>>({}),[message,setMessage]=useState("");
+ async function load(){setLoading(true);try{const [s,o,c]=await Promise.all([listSubscriptions(),getOrders(),getDeliverySlotCounts()]);setSubs(s.filter(x=>x.status==="ACTIVE"));setOrders(o);setCounts(c);}catch(e){console.error(e);setMessage("Unable to load operations data.")}finally{setLoading(false)}}
+ useEffect(()=>onAuthStateChanged(auth,u=>{if(!u)window.location.href="/login";else{setChecking(false);load()}}),[]);
+ const date=today(), day=weekday();
+ const skippedToday=useMemo(()=>new Set(subs.flatMap(s=>records(s).filter(r=>r.skippedAt?.slice(0,10)===date&&r.status!=="USED"&&r.status!=="EXPIRED").map(r=>`${s.id}:${r.id}`))),[subs,date]);
+ const scheduled=useMemo(()=>subs.flatMap(s=>records(s).filter(r=>r.status==="SCHEDULED"&&r.scheduledFor===date).map(r=>({s,r}))),[subs,date]);
+ const skipped=useMemo(()=>subs.flatMap(s=>records(s).map(r=>({s,r}))),[subs]);
+ const subscriberRows:DeliveryRow[]=subs.filter(s=>!records(s).some(r=>r.skippedAt?.slice(0,10)===date&&r.status!=="USED"&&r.status!=="EXPIRED")).map(s=>{const meal=getPlan(s.planId)?.meals[day.toLowerCase()];return{id:`sub:${s.id}:${date}`,source:"SUBSCRIPTION",customerName:s.customerName||"Customer",customerId:s.userId,phone:s.phone||"—",planOrType:`${s.planName} Subscription`,meal:meal?.name||"Today's subscription meal",time:s.deliverySlot||s.deliveryTime,address:s.address,status:statusMap(s)[date]||"PENDING",subscriptionId:s.id}}).filter(x=>x.status!=="DELIVERED");
+ const scheduledRows:DeliveryRow[]=scheduled.map(({s,r})=>({id:`skip:${s.id}:${r.id}`,source:"SCHEDULED_MEAL",customerName:s.customerName||"Customer",customerId:s.userId,phone:s.phone||"—",planOrType:`${s.planName} Scheduled Meal`,meal:"Previously skipped meal",time:r.scheduledTime||s.deliverySlot||s.deliveryTime,address:s.address,status:statusMap(s)[`${date}:${r.id}`]||"PENDING",subscriptionId:s.id,skipId:r.id})).filter(x=>x.status!=="DELIVERED");
+ const orderRows:DeliveryRow[]=orders.filter(o=>o.status!=="DELIVERED"&&o.status!=="CANCELLED").map(o=>({id:`order:${o.id}`,source:"ORDER",customerName:o.name,customerId:o.id||o.orderId,phone:o.phone,planOrType:"Normal Menu Order",meal:o.items.map(i=>`${i.name} × ${i.quantity}`).join(", "),time:"Normal order",address:o.address||o.location,status:"PENDING",orderId:o.id}));
+ const deliveries=[...subscriberRows,...scheduledRows,...orderRows];
+ const delivered:DeliveryRow[]=[...subs.flatMap(s=>{const rows:DeliveryRow[]=[];const m=getPlan(s.planId)?.meals[day.toLowerCase()];if(statusMap(s)[date]==="DELIVERED")rows.push({id:`sub:${s.id}:${date}`,source:"SUBSCRIPTION",customerName:s.customerName||"Customer",customerId:s.userId,phone:s.phone||"—",planOrType:`${s.planName} Subscription`,meal:m?.name||"Today's subscription meal",time:s.deliverySlot||s.deliveryTime,address:s.address,status:"DELIVERED",subscriptionId:s.id});records(s).filter(r=>r.status==="SCHEDULED"&&r.scheduledFor===date&&statusMap(s)[`${date}:${r.id}`]==="DELIVERED").forEach(r=>rows.push({id:`skip:${s.id}:${r.id}`,source:"SCHEDULED_MEAL",customerName:s.customerName||"Customer",customerId:s.userId,phone:s.phone||"—",planOrType:`${s.planName} Scheduled Meal`,meal:"Previously skipped meal",time:r.scheduledTime||s.deliverySlot||s.deliveryTime,address:s.address,status:"DELIVERED",subscriptionId:s.id,skipId:r.id}));return rows}),...orders.filter(o=>o.status==="DELIVERED").map(o=>({id:`order:${o.id}`,source:"ORDER" as const,customerName:o.name,customerId:o.id||o.orderId,phone:o.phone,planOrType:"Normal Menu Order",meal:o.items.map(i=>`${i.name} × ${i.quantity}`).join(", "),time:"Delivered",address:o.address||o.location,status:"DELIVERED" as const,orderId:o.id}))];
+ async function changeStatus(row:DeliveryRow,status:DeliveryStatus){try{if(row.source==="ORDER"&&row.orderId)await updateOrderStatus(row.orderId,status==="DELIVERED"?"DELIVERED":"CONFIRMED");else if(row.subscriptionId){const s=subs.find(x=>x.id===row.subscriptionId);if(!s)return;const map=statusMap(s);const key=row.source==="SUBSCRIPTION"?date:`${date}:${row.skipId}`;await updateSubscription(s.id!,{deliveryStatusByDate:{...map,[key]:status}} as Partial<Subscription>)}setMessage(status==="DELIVERED"?"Delivery moved to Delivered.":"Delivery returned to Pending.");await load()}catch(e){console.error(e);setMessage("Unable to update delivery status.")}}
+ if(checking||loading)return <main className="min-h-screen grid place-items-center bg-[#0F0F10] text-white/50">Loading admin operations…</main>;
+ return <main className="min-h-screen bg-[#0F0F10] px-5 py-8 text-white md:px-10"><div className="mx-auto max-w-7xl"><header className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.3em] text-[#E63946]">Admin Operations</p><h1 className="mt-2 text-4xl font-bold">Delivery Control</h1><p className="mt-2 text-white/40">Active subscribers, today's deliveries and completed deliveries.</p></div><div className="flex flex-wrap gap-2"><Link href="/admin" className="rounded-full border border-white/10 px-5 py-2 text-sm">Restaurant Admin</Link><Link href="/admin/restaurant-status" className="rounded-full border border-white/10 px-5 py-2 text-sm">Restaurant Status</Link><Link href="/admin/orders" className="rounded-full border border-white/10 px-5 py-2 text-sm">Orders</Link></div></header>
+ <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Stat label="Active subscribers" value={subs.length}/><Stat label="Today's deliveries" value={deliveries.length}/><Stat label="Skipped credits" value={skipped.filter(x=>x.r.status==="AVAILABLE").length}/><Stat label="Delivered today" value={delivered.length}/></div>{message&&<div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">{message}</div>}
+ <section className="mt-8 rounded-3xl border border-white/10 bg-[#171717] p-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-2xl font-bold">Subscribers</h2><p className="text-sm text-white/40">Active members only. Pending payments and failed checkouts are excluded.</p></div><div className="flex flex-wrap gap-2">{DELIVERY_SLOTS.map(s=><div key={s} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs"><b>{s}</b><span className="ml-2 text-white/45">{counts[s]||0}/{DELIVERY_SLOT_CAPACITY}</span>{(counts[s]||0)>=DELIVERY_SLOT_CAPACITY&&<span className="ml-2 text-red-300">FULL</span>}</div>)}</div></div><div className="mt-5 overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm"><thead className="text-xs text-white/35"><tr><th className="p-3">Customer</th><th className="p-3">ID</th><th className="p-3">Phone</th><th className="p-3">Plan</th><th className="p-3">Slot</th><th className="p-3">Location</th><th className="p-3">Status</th></tr></thead><tbody>{subs.map(s=><tr key={s.id} className="border-t border-white/5"><td className="p-3 font-semibold">{s.customerName||"Customer"}</td><td className="p-3 text-white/45">{s.userId}</td><td className="p-3">{s.phone||"—"}</td><td className="p-3">{s.planName}</td><td className="p-3">{s.deliverySlot||s.deliveryTime}</td><td className="max-w-[260px] p-3">{s.address}</td><td className="p-3 text-green-300">ACTIVE</td></tr>)}</tbody></table>{subs.length===0&&<p className="p-5 text-white/40">No active subscribers.</p>}</div></section>
+ <section className="mt-8 rounded-3xl border border-white/10 bg-[#171717] p-6"><h2 className="text-2xl font-bold">Today's Deliveries</h2><p className="mt-1 text-sm text-white/40">Subscriber meals, scheduled skipped meals and normal menu orders that still need delivery today.</p><DeliveryTable rows={deliveries} onStatus={changeStatus}/></section>
+ <section className="mt-8 rounded-3xl border border-white/10 bg-[#171717] p-6"><h2 className="text-2xl font-bold">Delivered</h2><p className="mt-1 text-sm text-white/40">Completed deliveries are kept here for today's history.</p><DeliveryTable rows={delivered} onStatus={changeStatus}/></section>
+ <section className="mt-8 grid gap-8 lg:grid-cols-2"><ListCard title="Skipped Meals" items={skipped.filter(x=>x.r.status==="AVAILABLE").map(x=>`${x.s.customerName||"Customer"} · ${x.s.planName} · skipped ${new Date(x.r.skippedAt).toLocaleDateString()}`)}/><ListCard title="Rescheduled Meals" items={skipped.filter(x=>x.r.status==="SCHEDULED").map(x=>`${x.s.customerName||"Customer"} · scheduled for ${x.r.scheduledFor||"—"} · ${x.r.scheduledTime||x.s.deliverySlot||x.s.deliveryTime}`)}/></section>
+ </div></main>;
 }
-function todayKey() {
-  const d = new Date().getDay();
-  return d === 0 ? "SUN" : DAYS[d - 1];
-}
-function getRecords(sub: Subscription): SkipRecord[] {
-  return ((sub as Subscription & { skippedMealRecords?: SkipRecord[] }).skippedMealRecords || []);
-}
-
-export default function AdminOperationsPage() {
-  const [checking, setChecking] = useState(true);
-  const [subs, setSubs] = useState<Subscription[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [slots, setSlots] = useState<Slot[]>([]);
-  const [meals, setMeals] = useState<MealSchedule[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-  const [slotForm, setSlotForm] = useState<Slot>({ label: TIMES[0], active: true, cutoffMinutes: 120 });
-  const [mealForm, setMealForm] = useState<MealSchedule>({ planId: "silver", day: "MON", name: "", image: "", calories: 0, protein: 0, active: true });
-  const [editingSlot, setEditingSlot] = useState<string | null>(null);
-  const [editingMeal, setEditingMeal] = useState<string | null>(null);
-  const [otp, setOtp] = useState<Record<string, string>>({});
-
-  async function load() {
-    setLoading(true);
-    try {
-      const [s, o, slotSnap, mealSnap] = await Promise.all([
-        listSubscriptions(),
-        getOrders(),
-        getDocs(collection(db, "deliverySlots")),
-        getDocs(collection(db, "mealSchedules")),
-      ]);
-      setSubs(s);
-      setOrders(o);
-      setSlots(slotSnap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Slot, "id">) })));
-      setMeals(mealSnap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<MealSchedule, "id">) })));
-    } catch (e) {
-      console.error(e);
-      setMessage("Unable to load admin operations data.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => onAuthStateChanged(auth, user => {
-    if (!user) window.location.href = "/login";
-    else { setChecking(false); load(); }
-  }), []);
-
-  const activeSubs = useMemo(() => subs.filter(s => s.status === "ACTIVE"), [subs]);
-  const pendingSubs = subs.filter(s => s.status === "PENDING_PAYMENT");
-  const today = todayKey();
-  const todayDeliveries = activeSubs.filter(s => {
-    const records = getRecords(s);
-    const todayIso = new Date().toISOString().slice(0, 10);
-    return !records.some(r => r.status === "SCHEDULED" && r.scheduledFor === todayIso);
-  });
-  const allSkipped = subs.flatMap(s => getRecords(s).map(r => ({ ...r, sub: s })));
-  const availableSkipped = allSkipped.filter(x => x.status === "AVAILABLE" && daysLeft(x.expiresAt) > 0);
-  const expiring = availableSkipped.filter(x => daysLeft(x.expiresAt) <= 3);
-  const rescheduled = allSkipped.filter(x => x.status === "SCHEDULED");
-
-  async function saveSlot() {
-    try {
-      if (editingSlot) await updateDoc(doc(db, "deliverySlots", editingSlot), { ...slotForm, updatedAt: serverTimestamp() });
-      else await addDoc(collection(db, "deliverySlots"), { ...slotForm, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-      setEditingSlot(null); setSlotForm({ label: TIMES[0], active: true, cutoffMinutes: 120 }); await load();
-    } catch (e) { console.error(e); setMessage("Failed to save delivery slot."); }
-  }
-  async function removeSlot(id: string) {
-    if (!confirm("Delete this delivery slot?")) return;
-    await deleteDoc(doc(db, "deliverySlots", id)); await load();
-  }
-  async function saveMeal() {
-    try {
-      const data = { ...mealForm, calories: Number(mealForm.calories), protein: Number(mealForm.protein), updatedAt: serverTimestamp() };
-      if (editingMeal) await updateDoc(doc(db, "mealSchedules", editingMeal), data);
-      else await addDoc(collection(db, "mealSchedules"), { ...data, createdAt: serverTimestamp() });
-      setEditingMeal(null); setMealForm({ planId: "silver", day: "MON", name: "", image: "", calories: 0, protein: 0, active: true }); await load();
-    } catch (e) { console.error(e); setMessage("Failed to save meal schedule."); }
-  }
-  async function removeMeal(id: string) {
-    if (!confirm("Delete this scheduled meal?")) return;
-    await deleteDoc(doc(db, "mealSchedules", id)); await load();
-  }
-  async function changeSubscriptionStatus(id: string, status: Subscription["status"]) {
-    await updateSubscription(id, { status }); await load();
-  }
-  async function verifyOtp(id: string) {
-    try { await verifyDeliveryOtp(id, otp[id] || ""); setMessage("Delivery confirmed."); await load(); }
-    catch (e) { setMessage(e instanceof Error ? e.message : "Invalid OTP"); }
-  }
-  async function changeOrder(id: string, status: string) {
-    await updateOrderStatus(id, status); await load();
-  }
-
-  if (checking || loading) return <main className="min-h-screen bg-[#0F0F10] grid place-items-center text-white/50">Loading admin operations…</main>;
-
-  return (
-    <main className="min-h-screen bg-[#0F0F10] text-white px-5 py-8 md:px-10">
-      <div className="mx-auto max-w-7xl">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div><p className="text-xs font-bold uppercase tracking-[0.3em] text-[#E63946]">Admin Operations</p><h1 className="mt-2 text-4xl font-bold">Eat & Fit Delivery Control</h1><p className="mt-2 text-white/40">Subscription operations, meals, delivery slots, skips and OTP delivery.</p></div>
-          <div className="flex gap-2"><Link href="/admin" className="rounded-full border border-white/10 px-5 py-2 text-sm">Restaurant Admin</Link><Link href="/admin/subscriptions" className="rounded-full border border-white/10 px-5 py-2 text-sm">Subscriptions</Link><Link href="/admin/orders" className="rounded-full border border-white/10 px-5 py-2 text-sm">Orders</Link></div>
-        </header>
-
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {[["Active subscriptions", activeSubs.length], ["Pending payment", pendingSubs.length], ["Today's deliveries", todayDeliveries.length], ["Skipped credits", availableSkipped.length], ["Expiring ≤3 days", expiring.length]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-white/10 bg-[#171717] p-5"><p className="text-xs text-white/40">{label}</p><p className="mt-2 text-3xl font-bold">{value}</p></div>)}
-        </div>
-
-        {message && <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">{message}</div>}
-
-        <section className="mt-8 rounded-3xl border border-white/10 bg-[#171717] p-6">
-          <div className="mb-5"><h2 className="text-2xl font-bold">Active Subscriptions</h2><p className="text-sm text-white/40">Customer details, plan, meal, delivery, customizations, skips and status.</p></div>
-          <div className="space-y-4">
-            {activeSubs.length === 0 ? <p className="text-white/40">No active subscriptions.</p> : activeSubs.map(s => {
-              const plan = getPlan(s.planId); const meal = plan?.meals[today.toLowerCase()]; const records = getRecords(s); const available = records.filter(r => r.status === "AVAILABLE" && daysLeft(r.expiresAt) > 0).length;
-              return <div key={s.id} className="rounded-2xl border border-white/10 bg-black/20 p-5">
-                <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
-                  <div><p className="font-bold">{s.planName}</p><p className="mt-1 text-xs text-white/40">Customer ID: {s.userId}</p><p className="mt-2 text-sm">{s.address || "No address"}</p></div>
-                  <div><p className="text-xs text-white/35">Today's meal</p><p className="mt-1 text-sm">{meal?.name || "No meal"}</p><p className="mt-1 text-xs text-white/40">{s.deliveryTime}</p></div>
-                  <div><p className="text-xs text-white/35">Customization</p><p className="mt-1 text-sm">{s.proteinPerMeal}g · {s.caloriesPerMeal} kcal</p><p className="mt-1 text-xs text-white/40">{s.instructions || "No instructions"}</p></div>
-                  <div><p className="text-xs text-white/35">Skip / delivery</p><p className="mt-1 text-sm">{available} credits</p><p className="mt-1 text-xs text-white/40">Ends {new Date(s.endDate).toLocaleDateString()}</p></div>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2"><button onClick={() => changeSubscriptionStatus(s.id!, "PAUSED")} className="rounded-lg border border-yellow-400/20 px-3 py-2 text-xs">Pause</button><button onClick={() => changeSubscriptionStatus(s.id!, "CANCELLED")} className="rounded-lg border border-red-400/20 px-3 py-2 text-xs">Cancel</button><button onClick={() => changeSubscriptionStatus(s.id!, "COMPLETED")} className="rounded-lg border border-white/10 px-3 py-2 text-xs">Complete</button></div>
-              </div>;
-            })}
-          </div>
-        </section>
-
-        <section className="mt-8 rounded-3xl border border-white/10 bg-[#171717] p-6">
-          <h2 className="text-2xl font-bold">Today's Deliveries</h2><p className="mt-1 text-sm text-white/40">Who needs food today, what they need, delivery time, changes and address.</p>
-          <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="text-xs text-white/35"><tr><th className="p-3">Customer</th><th className="p-3">Plan / Meal</th><th className="p-3">Time</th><th className="p-3">Address</th><th className="p-3">Changes</th></tr></thead><tbody>{todayDeliveries.map(s => { const meal = getPlan(s.planId)?.meals[today.toLowerCase()]; return <tr key={s.id} className="border-t border-white/5"><td className="p-3">{s.userId}</td><td className="p-3">{s.planName}<br/><span className="text-white/40">{meal?.name || "No meal"}</span></td><td className="p-3">{s.deliveryTime}</td><td className="p-3 max-w-[260px]">{s.address}</td><td className="p-3">{s.instructions || "None"}</td></tr>; })}</tbody></table></div>
-        </section>
-
-        <section className="mt-8 grid gap-8 lg:grid-cols-2">
-          <div className="rounded-3xl border border-white/10 bg-[#171717] p-6"><h2 className="text-2xl font-bold">Delivery Time Slots</h2><p className="mt-1 text-sm text-white/40">Control customer-selectable delivery windows and modification cutoff.</p>
-            <div className="mt-5 space-y-3">{slots.map(slot => <div key={slot.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-black/20 p-4"><div><b>{slot.label}</b><p className="text-xs text-white/40">{slot.active ? "Active" : "Inactive"} · cutoff {slot.cutoffMinutes} min</p></div><div className="flex gap-2"><button onClick={() => {setEditingSlot(slot.id!); setSlotForm(slot)}} className="rounded-lg bg-blue-600 px-3 py-2 text-xs">Edit</button><button onClick={() => removeSlot(slot.id!)} className="rounded-lg bg-red-600 px-3 py-2 text-xs">Delete</button></div></div>)}
-              {slots.length === 0 && <p className="text-sm text-white/35">No admin slots yet. Add the first slots below.</p>}
-            </div>
-            <div className="mt-5 grid gap-3"><select value={slotForm.label} onChange={e=>setSlotForm({...slotForm,label:e.target.value})} className="rounded-xl bg-black/30 p-3"><option>{TIMES[0]}</option><option>{TIMES[1]}</option><option>{TIMES[2]}</option></select><input type="number" min="0" value={slotForm.cutoffMinutes} onChange={e=>setSlotForm({...slotForm,cutoffMinutes:Number(e.target.value)})} placeholder="Cutoff minutes" className="rounded-xl bg-black/30 p-3"/><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={slotForm.active} onChange={e=>setSlotForm({...slotForm,active:e.target.checked})}/> Active</label><button onClick={saveSlot} className="rounded-xl bg-[#E63946] px-5 py-3 font-bold">{editingSlot ? "Save Slot" : "Add Slot"}</button></div>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-[#171717] p-6"><h2 className="text-2xl font-bold">Meal Schedule</h2><p className="mt-1 text-sm text-white/40">Configure meals for every plan and day.</p>
-            <div className="mt-5 space-y-3">{meals.map(m => <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl bg-black/20 p-4"><div><b className="capitalize">{m.planId}</b><span className="mx-2 text-white/25">·</span><b>{m.day}</b><p className="text-xs text-white/40">{m.name} · {m.protein}g · {m.calories} kcal</p></div><div className="flex gap-2"><button onClick={()=>{setEditingMeal(m.id!);setMealForm(m)}} className="rounded-lg bg-blue-600 px-3 py-2 text-xs">Edit</button><button onClick={()=>removeMeal(m.id!)} className="rounded-lg bg-red-600 px-3 py-2 text-xs">Delete</button></div></div>)}{meals.length===0&&<p className="text-sm text-white/35">No admin meal schedules yet.</p>}</div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2"><select value={mealForm.planId} onChange={e=>setMealForm({...mealForm,planId:e.target.value})} className="rounded-xl bg-black/30 p-3"><option value="silver">Silver</option><option value="golden">Golden</option><option value="diamond">Diamond</option></select><select value={mealForm.day} onChange={e=>setMealForm({...mealForm,day:e.target.value})} className="rounded-xl bg-black/30 p-3">{DAYS.map(d=><option key={d}>{d}</option>)}</select><input value={mealForm.name} onChange={e=>setMealForm({...mealForm,name:e.target.value})} placeholder="Meal name" className="rounded-xl bg-black/30 p-3"/><input value={mealForm.image} onChange={e=>setMealForm({...mealForm,image:e.target.value})} placeholder="Meal image URL" className="rounded-xl bg-black/30 p-3"/><input type="number" value={mealForm.protein} onChange={e=>setMealForm({...mealForm,protein:Number(e.target.value)})} placeholder="Protein g" className="rounded-xl bg-black/30 p-3"/><input type="number" value={mealForm.calories} onChange={e=>setMealForm({...mealForm,calories:Number(e.target.value)})} placeholder="Calories" className="rounded-xl bg-black/30 p-3"/><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={mealForm.active} onChange={e=>setMealForm({...mealForm,active:e.target.checked})}/> Active</label><button onClick={saveMeal} className="rounded-xl bg-[#E63946] px-5 py-3 font-bold sm:col-span-2">{editingMeal ? "Save Meal" : "Add Meal"}</button></div>
-          </div>
-        </section>
-
-        <section className="mt-8 grid gap-8 lg:grid-cols-3">
-          <div className="rounded-3xl border border-white/10 bg-[#171717] p-6"><h2 className="text-xl font-bold">Skipped Meals</h2><p className="mt-1 text-xs text-white/40">Each credit expires 15 days after skip.</p><div className="mt-4 space-y-2 max-h-[420px] overflow-auto">{allSkipped.length===0?<p className="text-sm text-white/35">No skipped meals.</p>:allSkipped.map(x=><div key={x.sub.id+"-"+x.id} className="rounded-xl bg-black/20 p-3 text-sm"><b>{x.sub.userId}</b><p className="text-xs text-white/40">{x.status} · expires {new Date(x.expiresAt).toLocaleDateString()}</p></div>)}</div></div>
-          <div className="rounded-3xl border border-white/10 bg-[#171717] p-6"><h2 className="text-xl font-bold">Expiring Meals</h2><p className="mt-1 text-xs text-white/40">Available credits expiring within 3 days.</p><div className="mt-4 space-y-2">{expiring.length===0?<p className="text-sm text-white/35">Nothing expiring soon.</p>:expiring.map(x=><div key={x.sub.id+"-"+x.id} className="rounded-xl bg-red-500/10 p-3 text-sm"><b>{x.sub.userId}</b><p className="text-xs text-red-300">Expires in {daysLeft(x.expiresAt)} day(s)</p></div>)}</div></div>
-          <div className="rounded-3xl border border-white/10 bg-[#171717] p-6"><h2 className="text-xl font-bold">Rescheduled Meals</h2><p className="mt-1 text-xs text-white/40">Meals moved using skipped-meal credits.</p><div className="mt-4 space-y-2">{rescheduled.length===0?<p className="text-sm text-white/35">No rescheduled meals.</p>:rescheduled.map(x=><div key={x.sub.id+"-"+x.id} className="rounded-xl bg-black/20 p-3 text-sm"><b>{x.sub.userId}</b><p className="text-xs text-white/40">{x.scheduledFor || "No date"} · {x.scheduledTime || "No time"}</p></div>)}</div></div>
-        </section>
-
-        <section className="mt-8 rounded-3xl border border-white/10 bg-[#171717] p-6"><h2 className="text-2xl font-bold">Delivery Status & OTP</h2><p className="mt-1 text-sm text-white/40">Normal orders can be moved through delivery stages and confirmed with the customer OTP.</p><div className="mt-5 space-y-4">{orders.length===0?<p className="text-white/35">No normal orders yet.</p>:orders.map(order=><div key={order.id} className="rounded-2xl bg-black/20 p-5"><div className="grid gap-4 lg:grid-cols-[1.2fr_1fr_1fr] lg:items-center"><div><b>{order.name}</b><p className="text-xs text-white/40">{order.phone} · {order.address}</p><p className="mt-1 text-sm">₹{order.total}</p></div><div><p className="text-xs text-white/35">Current status</p><select value={order.status} onChange={e=>changeOrder(order.id!,e.target.value)} className="mt-2 w-full rounded-lg bg-[#252525] p-2 text-sm">{ORDER_STATUSES.map(s=><option key={s}>{s}</option>)}</select></div><div>{["READY","OUT_FOR_DELIVERY","OTP_PENDING"].includes(order.status) ? <div><p className="text-xs text-white/35">Customer delivery OTP</p><div className="mt-2 flex gap-2"><input maxLength={4} value={otp[order.id!]||""} onChange={e=>setOtp(v=>({...v,[order.id!]:e.target.value}))} placeholder="4 digits" className="w-full rounded-lg bg-[#252525] p-2"/><button onClick={()=>verifyOtp(order.id!)} className="rounded-lg bg-[#E63946] px-4 py-2 text-xs font-bold">Verify</button></div></div> : <span className="text-xs text-white/35">{order.status === "DELIVERED" ? "OTP verified / delivered" : "OTP available at delivery stage"}</span>}</div></div></div>)}</div></section>
-
-        <p className="mt-8 pb-10 text-center text-xs text-white/25">Existing Restaurant Admin, Offers, Reviews, Orders and Subscription pages remain available. This page adds the requested subscription-operations controls.</p>
-      </div>
-    </main>
-  );
-}
+function Stat({label,value}:{label:string;value:number}){return <div className="rounded-2xl border border-white/10 bg-[#171717] p-5"><p className="text-xs text-white/40">{label}</p><p className="mt-2 text-3xl font-bold">{value}</p></div>}
+function ListCard({title,items}:{title:string;items:string[]}){return <div className="rounded-3xl border border-white/10 bg-[#171717] p-6"><h2 className="text-2xl font-bold">{title}</h2><div className="mt-5 space-y-2">{items.length?items.map((x,i)=><div key={`${x}-${i}`} className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/65">{x}</div>):<p className="text-white/35">None.</p>}</div></div>}
+function DeliveryTable({rows,onStatus}:{rows:DeliveryRow[];onStatus:(r:DeliveryRow,s:DeliveryStatus)=>void}){return <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="text-xs text-white/35"><tr><th className="p-3">Customer</th><th className="p-3">Phone</th><th className="p-3">Type</th><th className="p-3">Meal / Order</th><th className="p-3">Time</th><th className="p-3">Location</th><th className="p-3">Status</th></tr></thead><tbody>{rows.map(r=><tr key={r.id} className="border-t border-white/5"><td className="p-3 font-semibold">{r.customerName}<span className="block text-xs text-white/35">{r.customerId}</span></td><td className="p-3">{r.phone}</td><td className="p-3">{r.planOrType}</td><td className="max-w-[260px] p-3">{r.meal}</td><td className="p-3">{r.time}</td><td className="max-w-[260px] p-3">{r.address||"—"}</td><td className="p-3"><select value={r.status} onChange={e=>onStatus(r,e.target.value as DeliveryStatus)} className="rounded-lg border border-white/10 bg-black px-3 py-2 text-xs"><option value="PENDING">Pending</option><option value="DELIVERED">Delivered</option></select></td></tr>)}</tbody></table>{rows.length===0&&<p className="p-5 text-white/40">No deliveries in this list.</p>}</div>}
