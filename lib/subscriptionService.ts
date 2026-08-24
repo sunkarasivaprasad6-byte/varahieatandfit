@@ -75,7 +75,38 @@ export async function markPaymentPending(id: string, orderId: string) {
   await updateDoc(ref, { paymentOrderId: orderId, paymentStatus: "PENDING", updatedAt: serverTimestamp() });
 }
 
-export async function updateSubscription(id: string, data: Partial<Subscription>) { await updateDoc(doc(db, "subscriptions", id), { ...data, updatedAt: serverTimestamp() }); }
+function localCalendarDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dedupeSkippedMealRecords(records: SkippedMealRecord[]) {
+  const rank: Record<SkippedMealRecord["status"], number> = { EXPIRED: 0, USED: 1, AVAILABLE: 2, SCHEDULED: 3 };
+  const bySkippedDate = new Map<string, SkippedMealRecord>();
+
+  for (const record of records) {
+    const key = localCalendarDate(record.skippedAt);
+    const existing = bySkippedDate.get(key);
+    if (!existing || rank[record.status] > rank[existing.status]) {
+      bySkippedDate.set(key, record);
+    }
+  }
+
+  return Array.from(bySkippedDate.values());
+}
+
+export async function updateSubscription(id: string, data: Partial<Subscription>) {
+  const nextData: Partial<Subscription> = { ...data };
+  if (data.skippedMealRecords) {
+    nextData.skippedMealRecords = dedupeSkippedMealRecords(data.skippedMealRecords);
+    nextData.skippedMeals = nextData.skippedMealRecords.filter((record) => record.status === "AVAILABLE").length;
+  }
+  await updateDoc(doc(db, "subscriptions", id), { ...nextData, updatedAt: serverTimestamp() });
+}
 
 export async function listSubscriptions() {
   const snap = await getDocs(collection(db, "subscriptions"));
