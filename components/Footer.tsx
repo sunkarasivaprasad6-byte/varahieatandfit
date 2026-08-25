@@ -248,6 +248,54 @@ export default function Footer() {
             <div className="flex flex-col gap-8">
               <h4 className="font-playfair text-xl font-bold text-white uppercase tracking-widest text-[13px]">Contact Us</h4>
               <ul className="flex flex-col gap-6 font-jakarta text-white/60 text-[15px]">
+
+  {/* Legal Name */}
+  <li className="flex items-center gap-4 group">
+    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+      <span className="text-[#d91f27] text-sm font-bold">
+        ID
+      </span>
+    </div>
+
+    <span className="font-light group-hover:text-white transition-colors">
+      RAJASEKHAR NAIK BUKKE
+    </span>
+  </li>
+
+  {/* Address */}
+  <li className="flex gap-4 group cursor-pointer">
+    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-[#d91f27]/10 group-hover:border-[#d91f27]/30 transition-colors">
+      <MapPin className="w-4 h-4 text-[#d91f27]" />
+    </div>
+
+    <span className="mt-2 leading-relaxed font-light group-hover:text-white transition-colors">
+      1st Floor, 18-1-25/2, Annarao Circle, Shanthi Nagar (Near SBI Bank), KT Road, Tirupati
+    </span>
+  </li>
+
+  {/* Phone */}
+  <li className="flex items-center gap-4 group cursor-pointer">
+    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-[#d91f27]/10 group-hover:border-[#d91f27]/30 transition-colors">
+      <Phone className="w-4 h-4 text-[#d91f27]" />
+    </div>
+
+    <span className="font-light group-hover:text-white transition-colors">
+      +91 9704949192
+    </span>
+  </li>
+
+  {/* Email */}
+  <li className="flex items-center gap-4 group cursor-pointer">
+    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-[#d91f27]/10 group-hover:border-[#d91f27]/30 transition-colors">
+      <Mail className="w-4 h-4 text-[#d91f27]" />
+    </div>
+
+    <span className="font-light group-hover:text-white transition-colors">
+      eatandfitppt@gmail.com
+    </span>
+  </li>
+
+</ul>
                 <li className="flex gap-4 group cursor-pointer">
                   <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-[#d91f27]/10 group-hover:border-[#d91f27]/30 transition-colors">
                     <MapPin className="w-4 h-4 text-[#d91f27]" />
