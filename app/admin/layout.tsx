@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { adminAuth } from "@/lib/firebaseAdmin";
+import AdminSessionWatcher from "@/components/AdminSessionWatcher";
 
 const SESSION_COOKIE = "admin_session";
 
@@ -24,5 +25,10 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
-  return children;
+  return (
+    <>
+      <AdminSessionWatcher />
+      {children}
+    </>
+  );
 }
