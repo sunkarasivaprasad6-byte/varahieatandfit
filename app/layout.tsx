@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { CartProvider } from "@/components/cart/CartContext";
 import { Toaster } from "react-hot-toast";
 export const metadata: Metadata = {
@@ -51,6 +52,8 @@ export default function RootLayout({
               },
             }}
           />
+
+          <Analytics mode="production" />
 
         </CartProvider>
 
