@@ -1,0 +1,66 @@
+import { NextResponse } from "next/server";
+import { adminAuth } from "@/lib/firebaseAdmin";
+
+const SESSION_COOKIE = "admin_session";
+const EXPIRES_IN = 1000 * 60 * 60 * 24 * 5; // 5 days
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const idToken = typeof body?.idToken === "string" ? body.idToken : "";
+
+    if (!idToken) {
+      return NextResponse.json({ error: "Missing ID token" }, { status: 400 });
+    }
+
+    // Only allow a freshly authenticated Firebase session to be exchanged
+    // for the server-side admin session cookie.
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const authTime = Number(decoded.auth_time ?? 0);
+    const now = Math.floor(Date.now() / 1000);
+
+    if (!authTime || now - authTime > 5 * 60) {
+      return NextResponse.json(
+        { error: "Recent sign-in required" },
+        { status: 401 }
+      );
+    }
+
+    const sessionCookie = await adminAuth.createSessionCookie(idToken, {
+      expiresIn: EXPIRES_IN,
+    });
+
+    const response = NextResponse.json({ ok: true });
+
+    response.cookies.set({
+      name: SESSION_COOKIE,
+      value: sessionCookie,
+      maxAge: EXPIRES_IN / 1000,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Failed to create admin session:", error);
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}
+
+export async function DELETE() {
+  const response = NextResponse.json({ ok: true });
+
+  response.cookies.set({
+    name: SESSION_COOKIE,
+    value: "",
+    maxAge: 0,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
+
+  return response;
+}
