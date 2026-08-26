@@ -89,7 +89,11 @@ export async function activateSubscriptionFromCashfree(
     const reservationIsActive = reservationStatus === "ACTIVE";
     const reservationAlreadyActivated = reservationStatus === "ACTIVATED";
 
-    if (!reservationAlreadyActivated && activeCount + (reservationIsActive ? reservedCount : 0) >= DELIVERY_SLOT_CAPACITY) {
+    // The current subscription already owns one reserved place when the
+    // reservation is ACTIVE, so only activeCount itself can block activation.
+    // For an expired/released reservation, the reserved count has already been
+    // returned to the pool, so activeCount is also the relevant capacity check.
+    if (!reservationAlreadyActivated && activeCount >= DELIVERY_SLOT_CAPACITY) {
       throw new Error(`The ${deliverySlot} delivery slot is full`);
     }
 
