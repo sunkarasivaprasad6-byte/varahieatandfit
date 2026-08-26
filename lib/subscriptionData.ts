@@ -103,8 +103,7 @@ const goldenMeals: Record<string, SubscriptionMeal> = {
 
   tue: {
     name: "Egg Roll + Sprouts + Juice",
-    image:
-      "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=900&auto=format&fit=crop&q=80",
+    image: "/images/golden-tuesday.jpeg",,
     calories: 420,
     protein: 26,
   },
