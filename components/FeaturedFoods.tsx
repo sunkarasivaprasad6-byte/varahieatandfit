@@ -4,25 +4,11 @@ import Image from "next/image";
 
 const categories = [
   {
-    id: "Salads",
-    title: "Fresh Salads",
-    items: "8 Items",
-    image:
-      "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80"
-  },
-  {
     id: "Rolls",
     title: "Healthy Rolls",
     items: "5 Items",
     image:
       "https://images.unsplash.com/photo-1626700051175-6818013e1d4f?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "Soups",
-    title: "Healthy Soups",
-    items: "11 Items",
-    image:
-      "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "Protein",
@@ -32,32 +18,33 @@ const categories = [
       "https://images.unsplash.com/photo-1622484212850-eb596d769edc?auto=format&fit=crop&w=800&q=80",
   },
   {
+    id: "Salads",
+    title: "Fresh Salads",
+    items: "8 Items",
+    image:
+      "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "Soups",
+    title: "Healthy Soups",
+    items: "11 Items",
+    image:
+      "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "Fruit Juices",
+    title: "Juices",
+    items: "Fresh Juices, Veg Juices, Leafy Juices – 20 Items",
+    image:
+      "https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?auto=format&fit=crop&w=800&q=80",
+    juiceCategories: ["Fruit Juices", "Veg Juices", "Leafy Juices"],
+  },
+  {
     id: "Tea",
     title: "Tea",
     items: "18 Items",
     image:
       "https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "Fruit Juices",
-    title: "Fruit Juices",
-    items: "6 Items",
-    image:
-      "https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "Veg Juices",
-    title: "Veg Juices",
-    items: "8 Items",
-    image:
-      "https://images.unsplash.com/photo-1610970881699-44a5587cabec?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "Leafy Juices",
-    title: "Leafy Juices",
-    items: "6 Items",
-    image:
-      "https://media.istockphoto.com/id/485131020/photo/green-vegetable-juice-on-rustic-wood-table.webp?a=1&b=1&s=612x612&w=0&k=20&c=cdAcj93roABaOLpzVAyZ0LQ9Zut0FxjcHL4u3un0Ru4=",
   },
 ];
 
