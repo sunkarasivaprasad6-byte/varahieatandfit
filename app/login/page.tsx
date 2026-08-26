@@ -17,14 +17,30 @@ export default function LoginPage() {
     try {
       setLoading(true);
 
-      await signInWithEmailAndPassword(
+      const credential = await signInWithEmailAndPassword(
         auth,
         email,
         password
       );
 
-      router.push("/admin");
+      // Exchange the Firebase ID token for an HttpOnly server session.
+      const idToken = await credential.user.getIdToken(true);
 
+      const response = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ idToken }),
+      });
+
+      if (!response.ok) {
+        await auth.signOut();
+        throw new Error("Unable to create admin session");
+      }
+
+      router.replace("/admin");
+      router.refresh();
     } catch (error) {
       alert("Invalid Email or Password");
       console.error(error);
