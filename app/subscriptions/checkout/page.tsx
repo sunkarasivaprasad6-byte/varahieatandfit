@@ -10,10 +10,14 @@ import { DAYS, getPlan } from "@/lib/subscriptionData";
 import { createSubscriptionDraft } from "@/lib/subscriptionService";
 import { DELIVERY_SLOTS, getDeliverySlotAvailability, type DeliverySlot } from "@/lib/deliverySlotService";
 import { toast } from "react-hot-toast";
-import { CheckCircle2, ChevronLeft, ExternalLink, LocateFixed, MapPin, MessageSquare, ShieldCheck } from "lucide-react";
+import { ChevronLeft, ExternalLink, LocateFixed, MapPin, MessageSquare, ShieldCheck } from "lucide-react";
 
-type DraftState = { name: string; phone: string; slot: DeliverySlot | ""; instructions: string; address: string; protein: number; calories: number };
+type DraftState = { name: string; phone: string; slot: DeliverySlot | ""; instructions: string; address: string; protein: number; step: number; day: (typeof DAYS)[number] };
 const DRAFT_KEY = "varahi-subscription-checkout";
+
+function proteinRange(actual: number) {
+  return { min: Math.max(0, actual - 2), max: actual + 6 };
+}
 
 export default function SubscriptionCheckoutPage() { return <Suspense fallback={null}><SubscriptionCheckoutContent /></Suspense>; }
 
@@ -28,7 +32,6 @@ function SubscriptionCheckoutContent() {
   const [slot, setSlot] = useState<DeliverySlot | "">("");
   const [slots, setSlots] = useState<Awaited<ReturnType<typeof getDeliverySlotAvailability>>>([]);
   const [protein, setProtein] = useState(30);
-  const [calories, setCalories] = useState(400);
   const [instructions, setInstructions] = useState("");
   const [address, setAddress] = useState("");
   const [locationDetected, setLocationDetected] = useState(false);
@@ -39,15 +42,27 @@ function SubscriptionCheckoutContent() {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null") as DraftState | null;
-      if (saved) { setName(saved.name || ""); setPhone(saved.phone || ""); setSlot(saved.slot || ""); setInstructions(saved.instructions || ""); setAddress(saved.address || ""); setProtein(saved.protein || 30); setCalories(saved.calories || 400); }
+      if (saved) {
+        setName(saved.name || ""); setPhone(saved.phone || ""); setSlot(saved.slot || ""); setInstructions(saved.instructions || ""); setAddress(saved.address || "");
+        setDay(saved.day || "MON"); setStep(typeof saved.step === "number" ? saved.step : 0);
+      }
     } catch {}
     getDeliverySlotAvailability().then(setSlots).catch(() => toast.error("Unable to load delivery slot availability."));
   }, []);
 
   const meal = useMemo(() => plan?.meals[day.toLowerCase() as keyof typeof plan.meals], [plan, day]);
+  const range = proteinRange(meal?.protein || 0);
+
+  useEffect(() => {
+    if (!meal) return;
+    setProtein((current) => current >= range.min && current <= range.max ? current : meal.protein);
+  }, [meal, range.min, range.max]);
+
   if (!plan || !meal) return <main className="grid min-h-screen place-items-center bg-[#050505] text-white">Invalid subscription plan.</main>;
 
-  function saveDraft() { localStorage.setItem(DRAFT_KEY, JSON.stringify({ name, phone, slot, instructions, address, protein, calories } satisfies DraftState)); }
+  function saveDraft(nextStep = step) {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ name, phone, slot, instructions, address, protein, step: nextStep, day } satisfies DraftState));
+  }
   function detectLocation() {
     if (!navigator.geolocation) { toast.error("Location detection is not supported by your browser."); return; }
     setDetectingLocation(true);
@@ -61,24 +76,27 @@ function SubscriptionCheckoutContent() {
       const selected = slots.find((x) => x.slot === slot);
       if (!selected?.available) { toast.error("That delivery slot is full. Choose another slot."); return false; }
     }
+    if (step === 1 && (protein < range.min || protein > range.max)) { toast.error(`Protein must be between ${range.min}g and ${range.max}g.`); return false; }
     if (step === 3 && address.trim().length < 10) { toast.error("Enter your delivery address or detect your location."); return false; }
     return true;
   }
   async function continueStep() {
     if (!validateCurrentStep()) return;
-    saveDraft();
-    if (step < 5) { setStep(step + 1); return; }
+    const nextStep = step < 5 ? step + 1 : step;
+    saveDraft(nextStep);
+    if (step < 5) { setStep(nextStep); return; }
     await startPayment();
   }
   async function startPayment() {
-    if (!userId) { saveDraft(); const returnTo = `/subscriptions/checkout?plan=${encodeURIComponent(plan.id)}`; window.location.href = `/account?returnTo=${encodeURIComponent(returnTo)}`; return; }
+    if (!userId) { saveDraft(5); const returnTo = `/subscriptions/checkout?plan=${encodeURIComponent(plan.id)}`; window.location.href = `/account?returnTo=${encodeURIComponent(returnTo)}`; return; }
     if (!slot) { toast.error("Select a delivery slot."); setStep(0); return; }
+    if (protein < range.min || protein > range.max) { toast.error(`Protein must be between ${range.min}g and ${range.max}g.`); setStep(1); return; }
     setLoading(true);
     try {
       const selected = slots.find((x) => x.slot === slot);
       if (!selected?.available) throw new Error("That delivery slot is now full. Please choose another slot.");
       const start = new Date(); const end = new Date(start); end.setDate(start.getDate() + 6);
-      const subscriptionId = await createSubscriptionDraft({ userId, customerName: name.trim(), phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: start.toISOString(), endDate: end.toISOString(), deliverySlot: slot, deliveryTime: slot, address, proteinPerMeal: protein, caloriesPerMeal: calories, instructions, skippedMeals: 0 });
+      const subscriptionId = await createSubscriptionDraft({ userId, customerName: name.trim(), phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: start.toISOString(), endDate: end.toISOString(), deliverySlot: slot, deliveryTime: slot, address, proteinPerMeal: protein, caloriesPerMeal: meal.calories, instructions, skippedMeals: 0 });
       const res = await fetch("/api/cashfree/create-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: plan.price, customerId: userId, customerName: name.trim(), customerPhone: phone, subscriptionId }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to create payment");
@@ -100,12 +118,12 @@ function SubscriptionCheckoutContent() {
       <section className="rounded-[32px] border border-white/10 bg-white/[0.035] p-6 sm:p-9">
         <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#E63946]">{steps[step]}</p>
         {step===0&&<><h1 className="mt-3 text-3xl font-bold">Your details & delivery slot</h1><p className="mt-2 text-sm text-white/40">We collect your name and phone number before your delivery location.</p><div className="mt-7 grid gap-4 sm:grid-cols-2"><label className="text-sm text-white/55">Full name<input value={name} onChange={e=>setName(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 p-4 outline-none focus:border-[#E63946]" placeholder="Your full name"/></label><label className="text-sm text-white/55">Phone number<input value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,"").slice(0,10))} inputMode="numeric" className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 p-4 outline-none focus:border-[#E63946]" placeholder="10-digit mobile number"/></label></div><h2 className="mt-8 text-xl font-bold">Choose a delivery slot</h2><div className="mt-4 grid gap-3">{DELIVERY_SLOTS.map(s=>{const info=slots.find(x=>x.slot===s);const full=info ? !info.available : false;return <button key={s} type="button" disabled={full} onClick={()=>setSlot(s)} className={`flex items-center justify-between rounded-2xl border p-4 text-left ${full?"cursor-not-allowed border-red-500/20 bg-red-500/5 opacity-60":slot===s?"border-[#E63946] bg-[#E63946]/10":"border-white/10 bg-black/20 hover:border-white/20"}`}><span><b>{s}</b><span className="mt-1 block text-xs text-white/40">{info?`${info.count}/${info.capacity} members · ${info.remaining} spots left`:"Loading capacity..."}</span></span><span className={`rounded-full px-3 py-1 text-xs font-bold ${full?"bg-red-500/10 text-red-300":"bg-green-500/10 text-green-300"}`}>{full?"Unavailable":"Available"}</span></button>})}</div></>}
-        {step===1&&<><h1 className="mt-3 text-3xl font-bold">Your weekly meals</h1><div className="mt-6 flex gap-2 overflow-x-auto">{DAYS.map(d=><button key={d} onClick={()=>setDay(d)} className={`rounded-full px-5 py-2 text-xs font-bold ${day===d?"bg-[#E63946]":"bg-white/5 text-white/50"}`}>{d}</button>)}</div><div className="mt-6 grid gap-6 sm:grid-cols-[220px_1fr]"><div className="relative h-52 overflow-hidden rounded-2xl"><Image src={meal.image} alt={meal.name} fill className="object-cover" sizes="220px"/></div><div><h2 className="text-2xl font-bold">{meal.name}</h2><p className="mt-2 text-sm text-white/45">{meal.protein}g protein · {meal.calories} kcal</p><div className="mt-5 grid grid-cols-2 gap-3"><label className="text-xs text-white/45">Protein<input type="number" min="10" max="100" value={protein} onChange={e=>setProtein(Number(e.target.value))} className="mt-2 w-full rounded-xl bg-black/30 p-3"/></label><label className="text-xs text-white/45">Calories<input type="number" min="150" max="1200" value={calories} onChange={e=>setCalories(Number(e.target.value))} className="mt-2 w-full rounded-xl bg-black/30 p-3"/></label></div></div></div></>}
+        {step===1&&<><h1 className="mt-3 text-3xl font-bold">Your weekly meals</h1><div className="mt-6 flex gap-2 overflow-x-auto">{DAYS.map(d=><button key={d} onClick={()=>setDay(d)} className={`rounded-full px-5 py-2 text-xs font-bold ${day===d?"bg-[#E63946]":"bg-white/5 text-white/50"}`}>{d}</button>)}</div><div className="mt-6 grid gap-6 sm:grid-cols-[220px_1fr]"><div className="relative h-52 overflow-hidden rounded-2xl"><Image src={meal.image} alt={meal.name} fill className="object-cover" sizes="220px"/></div><div><h2 className="text-2xl font-bold">{meal.name}</h2><p className="mt-2 text-sm text-white/45">{meal.protein}g protein · {meal.calories} kcal</p><p className="mt-1 text-xs text-white/35">Protein range: {range.min}–{range.max}g</p><div className="mt-5"><label className="text-xs text-white/45">Customize Protein<input type="number" min={range.min} max={range.max} value={protein} onChange={e=>setProtein(Number(e.target.value))} className="mt-2 w-full rounded-xl bg-black/30 p-3"/></label><p className="mt-2 text-xs text-white/35">Enter a value only between {range.min}g and {range.max}g.</p></div></div></div></>}
         {step===2&&<><h1 className="mt-3 text-3xl font-bold">Special instructions</h1><div className="mt-8"><MessageSquare className="mb-3 h-5 w-5 text-[#E63946]"/><textarea value={instructions} onChange={e=>setInstructions(e.target.value)} placeholder="Less spicy, no onion, etc." className="min-h-40 w-full rounded-2xl border border-white/10 bg-black/25 p-5 outline-none focus:border-[#E63946]"/></div></>}
         {step===3&&<><h1 className="mt-3 text-3xl font-bold">Delivery location</h1><p className="mt-2 text-sm text-white/40">Your name and phone have already been collected.</p><div className="mt-7"><div className="flex items-center gap-2 text-sm text-white/60"><MapPin className="h-5 w-5 text-[#E63946]"/>Address / location</div><textarea value={address} onChange={e=>{setAddress(e.target.value);setLocationDetected(false)}} placeholder="Enter your full delivery address..." className="mt-3 min-h-36 w-full rounded-2xl border border-white/10 bg-black/25 p-5 outline-none focus:border-[#E63946]"/>{isMap&&<a href={address} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-xs text-[#E63946]">Open detected location <ExternalLink className="h-3.5 w-3.5"/></a>}<button type="button" onClick={detectLocation} disabled={detectingLocation} className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#E63946]/40 bg-[#E63946]/10 p-4 font-bold text-[#E63946]"><LocateFixed className="h-5 w-5"/>{detectingLocation?"Detecting...":locationDetected?"Location detected":"Detect My Location"}</button></div></>}
-        {step===4&&<><h1 className="mt-3 text-3xl font-bold">Review</h1><div className="mt-7 space-y-4 rounded-2xl bg-black/20 p-6 text-sm text-white/65"><p><b className="text-white">Customer:</b> {name} · {phone}</p><p><b className="text-white">Plan:</b> {plan.name} · ₹{plan.price}/week</p><p><b className="text-white">Delivery slot:</b> {slot}</p><p><b className="text-white">Address:</b> {isMap?<a href={address} target="_blank" rel="noreferrer" className="text-[#E63946]">Open Google Maps location</a>:address}</p><p><b className="text-white">Meal:</b> {meal.name}</p><p><b className="text-white">Instructions:</b> {instructions||"None"}</p></div></>}
+        {step===4&&<><h1 className="mt-3 text-3xl font-bold">Review</h1><div className="mt-7 space-y-4 rounded-2xl bg-black/20 p-6 text-sm text-white/65"><p><b className="text-white">Customer:</b> {name} · {phone}</p><p><b className="text-white">Plan:</b> {plan.name} · ₹{plan.price}/week</p><p><b className="text-white">Delivery slot:</b> {slot}</p><p><b className="text-white">Address:</b> {isMap?<a href={address} target="_blank" rel="noreferrer" className="text-[#E63946]">Open Google Maps location</a>:address}</p><p><b className="text-white">Meal:</b> {meal.name}</p><p><b className="text-white">Protein:</b> {protein}g (allowed {range.min}–{range.max}g)</p><p><b className="text-white">Calories:</b> {meal.calories} kcal</p><p><b className="text-white">Instructions:</b> {instructions||"None"}</p></div></>}
         {step===5&&<><h1 className="mt-3 text-3xl font-bold">Secure payment</h1><div className="mt-7 rounded-2xl border border-white/10 bg-black/20 p-6"><div className="flex gap-3"><ShieldCheck className="h-6 w-6 text-green-400"/><div><b>Cashfree secure checkout</b><p className="mt-1 text-sm text-white/40">Your subscription activates only after Cashfree confirms payment.</p></div></div></div></>}
-        <div className="mt-8 flex justify-between gap-3"><button type="button" disabled={step===0||loading} onClick={()=>setStep(s=>s-1)} className="rounded-full border border-white/10 px-6 py-3 text-sm font-bold disabled:opacity-30">Back</button><button type="button" disabled={loading} onClick={continueStep} className="rounded-full bg-[#E63946] px-7 py-3 font-bold">{loading?"Opening payment...":step===5?"Continue to Payment":"Continue"}</button></div>
+        <div className="mt-8 flex justify-between gap-3"><button type="button" disabled={step===0||loading} onClick={()=>{setStep(s=>s-1);saveDraft(step-1)}} className="rounded-full border border-white/10 px-6 py-3 text-sm font-bold disabled:opacity-30">Back</button><button type="button" disabled={loading} onClick={continueStep} className="rounded-full bg-[#E63946] px-7 py-3 font-bold">{loading?"Opening payment...":step===5?"Continue to Payment":"Continue"}</button></div>
       </section>
       <aside className="h-fit rounded-[28px] border border-white/10 bg-[#171717] p-6"><p className="text-xs uppercase tracking-[0.25em] text-white/35">Selected plan</p><h2 className="mt-2 text-2xl font-bold">{plan.name}</h2><p className="mt-1 text-sm text-white/45">₹{plan.price} / week</p><div className="relative mt-6 h-48 overflow-hidden rounded-2xl"><Image src={meal.image} alt={meal.name} fill className="object-cover" sizes="340px"/></div><p className="mt-4 text-sm font-semibold">{meal.name}</p><p className="mt-1 text-xs text-white/40">{meal.protein}g protein · {meal.calories} kcal</p><div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/45">Delivery: <b className="text-white">{slot||"Choose a slot"}</b></div></aside>
     </div></div></main>;
