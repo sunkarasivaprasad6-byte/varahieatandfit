@@ -110,8 +110,7 @@ const goldenMeals: Record<string, SubscriptionMeal> = {
 
   wed: {
     name: "Chicken Roll + Juice",
-    image:
-      "https://images.unsplash.com/photo-1626700051175-6818013e1d4f?auto=format&fit=crop&w=900&q=80",
+    image:"/images/cjuice.jpg",
     calories: 450,
     protein: 32,
   },
