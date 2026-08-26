@@ -17,6 +17,12 @@ export type SubscriptionPlan = {
 /*
   MENU FROM THE ACTUAL VARAHI EAT & FIT WEEKLY MENU
 
+  Nutrition rules from the supplied menu:
+  - Juice contributes 0 calories and 0 protein.
+  - Paneer Roll contributes 350 kcal and 20g protein.
+  - Fruit Salad has no nutrition value shown on the supplied menu, so it contributes 0.
+  - Other nutrition values are taken directly from the supplied menu.
+
   Silver:
   MON - Veg Roll
   TUE - Egg Roll
@@ -47,48 +53,48 @@ const silverMeals: Record<string, SubscriptionMeal> = {
     name: "Veg Roll",
     image:
       "https://images.unsplash.com/photo-1719282431565-3b30bb7d2658?auto=format&fit=crop&w=900&q=80",
-    calories: 320,
-    protein: 18,
+    calories: 160,
+    protein: 11,
   },
 
   tue: {
     name: "Egg Roll",
     image:
       "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=900&auto=format&fit=crop&q=80",
-    calories: 360,
-    protein: 24,
+    calories: 302,
+    protein: 17,
   },
 
   wed: {
     name: "Chicken Roll",
     image:
       "https://images.unsplash.com/photo-1626700051175-6818013e1d4f?auto=format&fit=crop&w=900&q=80",
-    calories: 410,
-    protein: 32,
+    calories: 320,
+    protein: 26,
   },
 
   thu: {
     name: "Egg Roll",
     image:
       "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=900&auto=format&fit=crop&q=80",
-    calories: 360,
-    protein: 24,
+    calories: 302,
+    protein: 17,
   },
 
   fri: {
     name: "Chicken Roll",
     image:
       "https://images.unsplash.com/photo-1626700051175-6818013e1d4f?auto=format&fit=crop&w=900&q=80",
-    calories: 410,
-    protein: 32,
+    calories: 320,
+    protein: 26,
   },
 
   sat: {
     name: "Veg Roll",
     image:
       "https://images.unsplash.com/photo-1719282431565-3b30bb7d2658?auto=format&fit=crop&w=900&q=80",
-    calories: 320,
-    protein: 18,
+    calories: 160,
+    protein: 11,
   },
 };
 
@@ -97,44 +103,44 @@ const goldenMeals: Record<string, SubscriptionMeal> = {
     name: "Veg Roll",
     image:
       "https://images.unsplash.com/photo-1719282431565-3b30bb7d2658?auto=format&fit=crop&w=900&q=80",
-    calories: 320,
-    protein: 18,
+    calories: 160,
+    protein: 11,
   },
 
   tue: {
     name: "Egg Roll + Sprouts + Juice",
     image: "/images/golden-tuesday.jpg",
-    calories: 420,
-    protein: 26,
+    calories: 415,
+    protein: 23,
   },
 
   wed: {
     name: "Chicken Roll + Juice",
-    image:"/images/cjuice.jpg",
-    calories: 450,
-    protein: 32,
+    image: "/images/cjuice.jpg",
+    calories: 320,
+    protein: 26,
   },
 
   thu: {
     name: "Egg + Chicken Roll + Juice",
-    image:"/images/cejuice.jpg",
-    calories: 500,
-    protein: 38,
+    image: "/images/cejuice.jpg",
+    calories: 390,
+    protein: 32,
   },
 
   fri: {
     name: "Paneer Roll + Egg + Sprouts",
-    image:"/images/pes.jpg",
-    calories: 480,
-    protein: 30,
+    image: "/images/pes.jpg",
+    calories: 533,
+    protein: 32,
   },
 
   sat: {
     name: "Veg Roll + Sprouts + Juice",
     image:
       "https://images.unsplash.com/photo-1719282431565-3b30bb7d2658?auto=format&fit=crop&w=900&q=80",
-    calories: 400,
-    protein: 20,
+    calories: 273,
+    protein: 17,
   },
 };
 
@@ -143,48 +149,48 @@ const diamondMeals: Record<string, SubscriptionMeal> = {
     name: "Veg Roll + Chicken Protein Salad + Juice + Egg",
     image:
       "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&auto=format&fit=crop&q=80",
-    calories: 560,
-    protein: 42,
+    calories: 450,
+    protein: 54,
   },
 
   tue: {
     name: "Egg Roll + Egg Salad + Protein Shake",
     image:
       "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=900&auto=format&fit=crop&q=80",
-    calories: 580,
-    protein: 38,
+    calories: 1642,
+    protein: 95,
   },
 
   wed: {
     name: "Chicken Roll + Fruit Salad + Juice + Egg",
     image:
       "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&auto=format&fit=crop&q=80",
-    calories: 590,
-    protein: 44,
+    calories: 390,
+    protein: 32,
   },
 
   thu: {
     name: "Egg + Chicken Roll + Paneer Salad + Corn Salad + Juice",
     image:
       "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&auto=format&fit=crop&q=80",
-    calories: 650,
-    protein: 48,
+    calories: 670,
+    protein: 51,
   },
 
   fri: {
     name: "Paneer Roll + Lean Chicken Salad + Juice + Egg",
     image:
       "https://plus.unsplash.com/premium_photo-1664640733581-a9175477cd11?w=900&auto=format&fit=crop&q=80",
-    calories: 620,
-    protein: 46,
+    calories: 605,
+    protein: 58,
   },
 
   sat: {
     name: "Veg Roll + Veg Salad + Protein Shake",
     image:
       "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=900&auto=format&fit=crop&q=80",
-    calories: 520,
-    protein: 28,
+    calories: 1355,
+    protein: 74,
   },
 };
 
