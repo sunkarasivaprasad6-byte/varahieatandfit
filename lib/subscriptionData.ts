@@ -117,8 +117,7 @@ const goldenMeals: Record<string, SubscriptionMeal> = {
 
   thu: {
     name: "Egg + Chicken Roll + Juice",
-    image:
-      "https://images.unsplash.com/photo-1626700051175-6818013e1d4f?auto=format&fit=crop&w=900&q=80",
+    image:"/images/cejuice.jpg",
     calories: 500,
     protein: 38,
   },
