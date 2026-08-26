@@ -1,4 +1,5 @@
 import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth as getAdminAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 function getAdminApp() {
@@ -21,7 +22,12 @@ function getAdminApp() {
     serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
   }
 
-  return initializeApp({ credential: cert(serviceAccount as Parameters<typeof cert>[0]) });
+  return initializeApp({
+    credential: cert(serviceAccount as Parameters<typeof cert>[0]),
+  });
 }
 
-export const adminDb = getFirestore(getAdminApp());
+const adminApp = getAdminApp();
+
+export const adminAuth = getAdminAuth(adminApp);
+export const adminDb = getFirestore(adminApp);
