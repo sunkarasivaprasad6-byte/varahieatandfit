@@ -21,23 +21,31 @@ export async function createSubscriptionDraft(data: Omit<Subscription, "id" | "c
 
 function isExpired(subscription: Subscription) { return Boolean(subscription.endDate) && new Date(subscription.endDate).getTime() < Date.now(); }
 
-export async function getActiveSubscription(userId: string) {
+export async function getActiveSubscriptions(userId: string) {
   const snap = await getDocs(query(collection(db, "subscriptions"), where("userId", "==", userId), where("status", "==", "ACTIVE")));
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  const subscription = { id: d.id, ...(d.data() as Omit<Subscription, "id">) } as Subscription;
-  if (isExpired(subscription)) { await updateDoc(doc(db, "subscriptions", d.id), { status: "COMPLETED", updatedAt: serverTimestamp() }); return null; }
-  return subscription;
+  const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription);
+  const expired = items.filter(isExpired);
+  await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() })));
+  return items.filter((s) => !expired.some((e) => e.id === s.id));
+}
+
+export async function getActiveSubscription(userId: string) {
+  const subscriptions = await getActiveSubscriptions(userId);
+  return subscriptions[0] || null;
+}
+
+export function subscribeToActiveSubscriptions(userId: string, callback: (value: Subscription[]) => void) {
+  const q = query(collection(db, "subscriptions"), where("userId", "==", userId), where("status", "==", "ACTIVE"));
+  return onSnapshot(q, async (snap) => {
+    const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription);
+    const expired = items.filter(isExpired);
+    await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() })));
+    callback(items.filter((s) => !expired.some((e) => e.id === s.id)));
+  });
 }
 
 export function subscribeToActiveSubscription(userId: string, callback: (value: Subscription | null) => void) {
-  const q = query(collection(db, "subscriptions"), where("userId", "==", userId), where("status", "==", "ACTIVE"));
-  return onSnapshot(q, (snap) => {
-    if (snap.empty) return callback(null);
-    const d = snap.docs[0]; const subscription = { id: d.id, ...(d.data() as Omit<Subscription, "id">) } as Subscription;
-    if (isExpired(subscription)) { updateDoc(doc(db, "subscriptions", d.id), { status: "COMPLETED", updatedAt: serverTimestamp() }).catch(console.error); return callback(null); }
-    callback(subscription);
-  });
+  return subscribeToActiveSubscriptions(userId, (subscriptions) => callback(subscriptions[0] || null));
 }
 
 export async function activateSubscription(id: string, payment?: { orderId?: string; paymentId?: string }) {
@@ -87,15 +95,11 @@ function localCalendarDate(value: string) {
 function dedupeSkippedMealRecords(records: SkippedMealRecord[]) {
   const rank: Record<SkippedMealRecord["status"], number> = { EXPIRED: 0, USED: 1, AVAILABLE: 2, SCHEDULED: 3 };
   const bySkippedDate = new Map<string, SkippedMealRecord>();
-
   for (const record of records) {
     const key = localCalendarDate(record.skippedAt);
     const existing = bySkippedDate.get(key);
-    if (!existing || rank[record.status] > rank[existing.status]) {
-      bySkippedDate.set(key, record);
-    }
+    if (!existing || rank[record.status] > rank[existing.status]) bySkippedDate.set(key, record);
   }
-
   return Array.from(bySkippedDate.values());
 }
 
