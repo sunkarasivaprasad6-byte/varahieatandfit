@@ -48,4 +48,20 @@ export const menuItems: MenuItem[] = [
     category: "Curry",
     description: "Creamy Paneer Butter Masala",
   },
+  {
+    id: 6,
+    name: "Gold Standard Whey Protein",
+    price: 0,
+    image: "/menu/protein-shake.jpg",
+    category: "Protein Shakes",
+    description: "Gold Standard Whey Protein shake",
+  },
+  {
+    id: 7,
+    name: "MB Biozyme Whey Protein",
+    price: 0,
+    image: "/menu/protein-shake.jpg",
+    category: "Protein Shakes",
+    description: "MB Biozyme Whey Protein shake",
+  },
 ];
