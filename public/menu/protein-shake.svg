@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-labelledby="title desc">
+  <title id="title">Protein shake</title>
+  <desc id="desc">A chocolate protein shake in a gym shaker bottle with whey protein powder and scoop.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111111"/>
+      <stop offset="1" stop-color="#2a0b0f"/>
+    </linearGradient>
+    <linearGradient id="bottle" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#171717"/>
+      <stop offset="0.5" stop-color="#343434"/>
+      <stop offset="1" stop-color="#0c0c0c"/>
+    </linearGradient>
+    <linearGradient id="shake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8d4b2e"/>
+      <stop offset="1" stop-color="#4b2417"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="20" stdDeviation="18" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect width="800" height="800" rx="48" fill="url(#bg)"/>
+  <circle cx="650" cy="130" r="170" fill="#e63946" opacity="0.12"/>
+  <circle cx="130" cy="690" r="210" fill="#e63946" opacity="0.08"/>
+
+  <g filter="url(#shadow)">
+    <path d="M275 205h250l-22 470c-2 38-32 62-70 62H367c-38 0-68-24-70-62z" fill="url(#bottle)" stroke="#555" stroke-width="5"/>
+    <path d="M290 205h220l-18 70H308z" fill="#090909" stroke="#777" stroke-width="4"/>
+    <path d="M315 145h170c16 0 28 12 28 28v38H287v-38c0-16 12-28 28-28z" fill="#111" stroke="#666" stroke-width="5"/>
+    <path d="M346 112h108c12 0 22 10 22 22v18H324v-18c0-12 10-22 22-22z" fill="#e63946"/>
+    <rect x="342" y="308" width="116" height="250" rx="52" fill="url(#shake)" opacity="0.96"/>
+    <path d="M350 330c24 22 78 22 100 0" fill="none" stroke="#c9825c" stroke-width="8" opacity="0.65"/>
+    <path d="M350 390c24 22 78 22 100 0M350 450c24 22 78 22 100 0" fill="none" stroke="#c9825c" stroke-width="5" opacity="0.45"/>
+    <rect x="315" y="575" width="170" height="48" rx="20" fill="#e63946"/>
+    <text x="400" y="607" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="white">PROTEIN SHAKE</text>
+  </g>
+
+  <g transform="translate(110 510) rotate(-14)" filter="url(#shadow)">
+    <path d="M0 120h175c18 0 30 12 30 28s-12 28-30 28H0z" fill="#d7d7d7"/>
+    <path d="M176 126c54 2 82 12 111 30l-14 25c-36-16-62-20-101-19z" fill="#eeeeee"/>
+    <ellipse cx="95" cy="120" rx="82" ry="28" fill="#f1f1f1"/>
+    <path d="M24 108c25-44 125-50 150 0-35 20-114 22-150 0z" fill="#6f3a25"/>
+    <circle cx="67" cy="98" r="9" fill="#9a5a3d"/>
+    <circle cx="104" cy="91" r="8" fill="#9a5a3d"/>
+    <circle cx="132" cy="104" r="7" fill="#9a5a3d"/>
+  </g>
+
+  <text x="400" y="735" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="800" fill="white">WHEY • FITNESS • NUTRITION</text>
+</svg>
