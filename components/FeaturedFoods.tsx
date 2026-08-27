@@ -14,8 +14,7 @@ const categories = [
     id: "Protein Shakes",
     title: "Protein Shakes",
     items: "2 Items",
-    image:
-      "https://images.unsplash.com/photo-1593095948071-474c5cc2989d?auto=format&fit=crop&w=800&q=80",
+    image:public/images/protein.jpeg,
   },
   {
     id: "Salads",
