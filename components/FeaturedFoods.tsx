@@ -11,8 +11,8 @@ const categories = [
       "https://images.unsplash.com/photo-1626700051175-6818013e1d4f?auto=format&fit=crop&w=800&q=80",
   },
   {
-    id: "Protein",
-    title: "Protein Picks",
+    id: "Protein Shakes",
+    title: "Protein Shakes",
     items: "2 Items",
     image:
       "https://images.unsplash.com/photo-1622484212850-eb596d769edc?auto=format&fit=crop&w=800&q=80",
@@ -37,7 +37,6 @@ const categories = [
     items: "Fresh Juices, Veg Juices, Leafy Juices – 20 Items",
     image:
       "https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?auto=format&fit=crop&w=800&q=80",
-    juiceCategories: ["Fruit Juices", "Veg Juices", "Leafy Juices"],
   },
   {
     id: "Tea",
@@ -51,9 +50,7 @@ const categories = [
 export default function FeaturedCategories() {
   return (
     <section className="py-24 bg-transparent">
-
       <div className="max-w-7xl mx-auto px-6">
-
         <h2 className="text-5xl font-bold text-white mb-4">
           Featured <span className="text-[#E63946]">Categories</span>
         </h2>
@@ -63,9 +60,7 @@ export default function FeaturedCategories() {
         </p>
 
         <div className="grid lg:grid-cols-4 md:grid-cols-2 grid-cols-1 gap-8">
-
           {categories.map((cat) => (
-
             <button
               key={cat.id}
               onClick={() => {
@@ -83,20 +78,16 @@ export default function FeaturedCategories() {
               }}
               className="group rounded-3xl overflow-hidden bg-[#171717] border border-white/10 hover:border-[#E63946] transition"
             >
-
               <div className="relative h-56">
-
                 <Image
                   src={cat.image}
                   alt={cat.title}
                   fill
                   className="object-cover group-hover:scale-110 transition duration-500"
                 />
-
               </div>
 
               <div className="p-6 text-left">
-
                 <h3 className="text-2xl text-white font-bold">
                   {cat.title}
                 </h3>
@@ -104,17 +95,11 @@ export default function FeaturedCategories() {
                 <p className="text-white/60 mt-2">
                   {cat.items}
                 </p>
-
               </div>
-
             </button>
-
           ))}
-
         </div>
-
       </div>
-
     </section>
   );
 }
