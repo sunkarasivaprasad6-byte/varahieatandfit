@@ -15,37 +15,19 @@ export type SubscriptionPlan = {
 };
 
 /*
-  MENU FROM THE ACTUAL VARAHI EAT & FIT WEEKLY MENU
+  MENU FROM THE SUPPLIED VARAHI EAT & FIT WEEKLY MENU
 
-  Nutrition rules from the supplied menu:
+  Nutrition rules:
   - Juice contributes 0 calories and 0 protein.
   - Paneer Roll contributes 350 kcal and 20g protein.
   - Fruit Salad has no nutrition value shown on the supplied menu, so it contributes 0.
-  - Other nutrition values are taken directly from the supplied menu.
+  - All other nutrition values below are taken from the supplied menu image.
+  - The protein-shake values are 55g protein and 1080 kcal, matching the supplied menu.
 
-  Silver:
-  MON - Veg Roll
-  TUE - Egg Roll
-  WED - Chicken Roll
-  THU - Egg Roll
-  FRI - Chicken Roll
-  SAT - Veg Roll
-
-  Golden:
-  MON - Veg Roll
-  TUE - Egg Roll + Sprouts + Juice
-  WED - Chicken Roll + Juice
-  THU - Egg + Chicken Roll + Juice
-  FRI - Paneer Roll + Egg + Sprouts
-  SAT - Veg Roll + Sprouts + Juice
-
-  Diamond:
-  MON - Veg Roll + Chicken Protein Salad + Juice + Egg
-  TUE - Egg Roll + Egg Salad + Protein Shake
-  WED - Chicken Roll + Fruit Salad + Juice + Egg
-  THU - Egg + Chicken Roll + Paneer Salad + Corn Salad + Juice
-  FRI - Paneer Roll + Lean Chicken Salad + Juice + Egg
-  SAT - Veg Roll + Veg Salad + Protein Shake
+  The subscription menu uses the same food items as the normal menu wherever
+  the poster names the component explicitly:
+  Sprout Salad, Boiled Egg, and Gold Standard Whey Protein are used instead
+  of the generic labels Sprouts, Egg, and Protein Shake.
 */
 
 const silverMeals: Record<string, SubscriptionMeal> = {
@@ -56,7 +38,6 @@ const silverMeals: Record<string, SubscriptionMeal> = {
     calories: 160,
     protein: 11,
   },
-
   tue: {
     name: "Egg Roll",
     image:
@@ -64,7 +45,6 @@ const silverMeals: Record<string, SubscriptionMeal> = {
     calories: 302,
     protein: 17,
   },
-
   wed: {
     name: "Chicken Roll",
     image:
@@ -72,7 +52,6 @@ const silverMeals: Record<string, SubscriptionMeal> = {
     calories: 320,
     protein: 26,
   },
-
   thu: {
     name: "Egg Roll",
     image:
@@ -80,7 +59,6 @@ const silverMeals: Record<string, SubscriptionMeal> = {
     calories: 302,
     protein: 17,
   },
-
   fri: {
     name: "Chicken Roll",
     image:
@@ -88,7 +66,6 @@ const silverMeals: Record<string, SubscriptionMeal> = {
     calories: 320,
     protein: 26,
   },
-
   sat: {
     name: "Veg Roll",
     image:
@@ -106,37 +83,32 @@ const goldenMeals: Record<string, SubscriptionMeal> = {
     calories: 160,
     protein: 11,
   },
-
   tue: {
-    name: "Egg Roll + Sprouts + Juice",
+    name: "Egg Roll + Sprout Salad + Juice",
     image: "/images/golden-tuesday.jpg",
     calories: 415,
     protein: 23,
   },
-
   wed: {
     name: "Chicken Roll + Juice",
     image: "/images/cjuice.jpg",
     calories: 320,
     protein: 26,
   },
-
   thu: {
-    name: "Egg + Chicken Roll + Juice",
+    name: "Boiled Egg + Chicken Roll + Juice",
     image: "/images/cejuice.jpg",
     calories: 390,
     protein: 32,
   },
-
   fri: {
-    name: "Paneer Roll + Egg + Sprouts",
+    name: "Paneer Roll + Boiled Egg + Sprout Salad",
     image: "/images/pes.jpg",
     calories: 533,
     protein: 32,
   },
-
   sat: {
-    name: "Veg Roll + Sprouts + Juice",
+    name: "Veg Roll + Sprout Salad + Juice",
     image:
       "https://images.unsplash.com/photo-1719282431565-3b30bb7d2658?auto=format&fit=crop&w=900&q=80",
     calories: 273,
@@ -146,47 +118,42 @@ const goldenMeals: Record<string, SubscriptionMeal> = {
 
 const diamondMeals: Record<string, SubscriptionMeal> = {
   mon: {
-    name: "Veg Roll + Chicken Protein Salad + Juice + Egg",
+    name: "Veg Roll + Chicken Protein Salad + Juice + Boiled Egg",
     image:
       "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&auto=format&fit=crop&q=80",
     calories: 450,
     protein: 54,
   },
-
   tue: {
-    name: "Egg Roll + Egg Salad + Protein Shake",
+    name: "Egg Roll + Egg Salad + Gold Standard Whey Protein",
     image:
       "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=900&auto=format&fit=crop&q=80",
     calories: 1642,
     protein: 95,
   },
-
   wed: {
-    name: "Chicken Roll + Fruit Salad + Juice + Egg",
+    name: "Chicken Roll + Fruit Salad + Juice + Boiled Egg",
     image:
       "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&auto=format&fit=crop&q=80",
     calories: 390,
     protein: 32,
   },
-
   thu: {
-    name: "Egg + Chicken Roll + Paneer Salad + Corn Salad + Juice",
+    name: "Boiled Egg + Chicken Roll + Paneer Salad + Corn Salad + Juice",
     image:
       "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&auto=format&fit=crop&q=80",
     calories: 670,
     protein: 51,
   },
-
   fri: {
-    name: "Paneer Roll + Lean Chicken Salad + Juice + Egg",
+    name: "Paneer Roll + Lean Chicken Salad + Juice + Boiled Egg",
     image:
       "https://plus.unsplash.com/premium_photo-1664640733581-a9175477cd11?w=900&auto=format&fit=crop&q=80",
     calories: 605,
     protein: 58,
   },
-
   sat: {
-    name: "Veg Roll + Veg Salad + Protein Shake",
+    name: "Veg Roll + Veg Salad + Gold Standard Whey Protein",
     image:
       "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=900&auto=format&fit=crop&q=80",
     calories: 1355,
@@ -194,10 +161,6 @@ const diamondMeals: Record<string, SubscriptionMeal> = {
   },
 };
 
-/*
-  The actual poster contains Monday-Saturday.
-  There is NO Sunday item in the provided menu.
-*/
 export const DAYS = [
   "MON",
   "TUE",
@@ -216,7 +179,6 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     accent: "#C8C8C8",
     meals: silverMeals,
   },
-
   {
     id: "golden",
     name: "Golden",
@@ -225,7 +187,6 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     accent: "#D8A93A",
     meals: goldenMeals,
   },
-
   {
     id: "diamond",
     name: "Diamond",
