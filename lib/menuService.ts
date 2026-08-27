@@ -57,6 +57,38 @@ const nutritionByName: Record<
   },
 };
 
+// These two products are part of the supplied menu's final Protein section.
+// They are provided as customer-facing fallbacks so they still appear when
+// the Firebase menu collection has not yet been seeded with those records.
+const proteinShakeFallbacks: MenuItem[] = [
+  {
+    id: "protein-gold-standard-whey",
+    name: "Gold Standard Whey Protein",
+    description: "Gold Standard whey protein shake",
+    category: "Protein Shakes",
+    price: 89,
+    image:
+      "https://images.unsplash.com/photo-1593095948071-474c5cc2989d?auto=format&fit=crop&w=800&q=80",
+    rating: 4.8,
+    calories: 1080,
+    protein: "55g",
+    isVegetarian: true,
+  },
+  {
+    id: "protein-mb-biozyme-whey",
+    name: "MB Biozyme Whey Protein",
+    description: "MB Biozyme whey protein shake",
+    category: "Protein Shakes",
+    price: 99,
+    image:
+      "https://images.unsplash.com/photo-1593095948071-474c5cc2989d?auto=format&fit=crop&w=800&q=80",
+    rating: 4.8,
+    calories: 1080,
+    protein: "55g",
+    isVegetarian: true,
+  },
+];
+
 function normalizeMenuItem(item: MenuItem): MenuItem {
   const nutrition = nutritionByName[item.name];
 
@@ -79,7 +111,7 @@ function normalizeMenuItem(item: MenuItem): MenuItem {
 export async function getMenu() {
   const snapshot = await getDocs(menuRef);
 
-  return snapshot.docs
+  const firebaseItems = snapshot.docs
     .map((docItem) =>
       normalizeMenuItem({
         id: docItem.id,
@@ -87,6 +119,13 @@ export async function getMenu() {
       })
     )
     .filter((item) => allowedCategories.has(item.category));
+
+  const existingNames = new Set(firebaseItems.map((item) => item.name));
+  const missingProteinShakes = proteinShakeFallbacks.filter(
+    (item) => !existingNames.has(item.name)
+  );
+
+  return [...firebaseItems, ...missingProteinShakes];
 }
 
 // Add a new food item
