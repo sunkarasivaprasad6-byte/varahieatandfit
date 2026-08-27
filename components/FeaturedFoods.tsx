@@ -14,7 +14,7 @@ const categories = [
     id: "Protein Shakes",
     title: "Protein Shakes",
     items: "2 Items",
-    image:/images/protein.jpeg,
+    image:"/images/protein.jpeg",
   },
   {
     id: "Salads",
