@@ -25,7 +25,8 @@ const allowedCategories = new Set([
   "Leafy Juices",
 ]);
 
-// Nutrition from the supplied Varahi menu.
+// Nutrition from the supplied Varahi menu. Where the supplied menu did not
+// provide a value, the estimate below is intentionally approximate.
 // Juice intentionally contributes no nutrition to subscription totals.
 const nutritionByName: Record<
   string,
@@ -33,7 +34,7 @@ const nutritionByName: Record<
 > = {
   "Sprout Salad": { calories: 113, protein: "6g" },
   "Lean Chicken Salad": { calories: 185, protein: "32g" },
-  "Fruit Salad": { calories: 0, protein: "0g" },
+  "Fruit Salad": { calories: 120, protein: "2g" },
   "Veg Salad": { calories: 115, protein: "8g" },
   "Corn Salad": { calories: 95, protein: "7g" },
   "Paneer Salad": { calories: 185, protein: "12g" },
@@ -57,6 +58,24 @@ const nutritionByName: Record<
   },
 };
 
+// Approximate values for menu items not individually listed in the supplied
+// nutrition image. These are display estimates only.
+function estimateNutrition(item: MenuItem): { calories: number; protein: string } {
+  const name = item.name.toLowerCase();
+  const category = item.category.toLowerCase();
+
+  if (category.includes("juice")) return { calories: 0, protein: "0g" };
+  if (category === "tea" || name.includes("tea")) return { calories: 60, protein: "2g" };
+  if (category === "soups" || name.includes("soup")) return { calories: 150, protein: "7g" };
+  if (category === "salads" || name.includes("salad")) return { calories: 150, protein: "8g" };
+  if (category === "rolls" || name.includes("roll")) return { calories: 280, protein: "15g" };
+  if (category === "protein shakes" || name.includes("whey") || name.includes("protein shake")) {
+    return { calories: 1080, protein: "55g" };
+  }
+
+  return { calories: 200, protein: "8g" };
+}
+
 // These two products are part of the supplied menu's final Protein section.
 // They are provided as customer-facing fallbacks so they still appear when
 // the Firebase menu collection has not yet been seeded with those records.
@@ -67,8 +86,7 @@ const proteinShakeFallbacks: MenuItem[] = [
     description: "Gold Standard whey protein shake",
     category: "Protein Shakes",
     price: 89,
-    image:
-      "https://images.unsplash.com/photo-1593095948071-474c5cc2989d?auto=format&fit=crop&w=800&q=80",
+    image: "/menu/protein-shake.svg",
     rating: 4.8,
     calories: 1080,
     protein: "55g",
@@ -80,8 +98,7 @@ const proteinShakeFallbacks: MenuItem[] = [
     description: "MB Biozyme whey protein shake",
     category: "Protein Shakes",
     price: 99,
-    image:
-      "https://images.unsplash.com/photo-1593095948071-474c5cc2989d?auto=format&fit=crop&w=800&q=80",
+    image: "/menu/protein-shake.svg",
     rating: 4.8,
     calories: 1080,
     protein: "55g",
@@ -91,18 +108,13 @@ const proteinShakeFallbacks: MenuItem[] = [
 
 function normalizeMenuItem(item: MenuItem): MenuItem {
   const nutrition = nutritionByName[item.name];
+  const estimated = nutrition ?? estimateNutrition(item);
 
   return {
     ...item,
-    ...(nutrition
-      ? {
-          calories: nutrition.calories,
-          protein: nutrition.protein,
-          ...(nutrition.category
-            ? { category: nutrition.category }
-            : {}),
-        }
-      : {}),
+    calories: estimated.calories,
+    protein: estimated.protein,
+    ...(nutrition?.category ? { category: nutrition.category } : {}),
   };
 }
 
@@ -129,30 +141,19 @@ export async function getMenu() {
 }
 
 // Add a new food item
-export async function addFood(
-  item: Omit<MenuItem, "id">
-) {
+export async function addFood(item: Omit<MenuItem, "id">) {
   return await addDoc(menuRef, item);
 }
 
 // Update a food item
 export async function updateFood(
   id: string,
-  data: Partial<MenuItem> & {
-    available?: boolean;
-  }
+  data: Partial<MenuItem> & { available?: boolean }
 ) {
-  return await updateDoc(
-    doc(db, "menu", id),
-    data
-  );
+  return await updateDoc(doc(db, "menu", id), data);
 }
 
 // Delete a food item
-export async function deleteFood(
-  id: string
-) {
-  return await deleteDoc(
-    doc(db, "menu", id)
-  );
+export async function deleteFood(id: string) {
+  return await deleteDoc(doc(db, "menu", id));
 }
