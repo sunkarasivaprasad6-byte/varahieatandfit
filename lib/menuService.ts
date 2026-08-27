@@ -12,15 +12,13 @@ import { MenuItem } from "@/types/menu";
 
 const menuRef = collection(db, "menu");
 
-// Categories that belong to the current Varahi Eat & Fit menu.
-// Legacy categories (for example old biryani/rice items) are not shown.
+// Only categories represented in the current Varahi Eat & Fit menu are
+// exposed to customers. Legacy categories are intentionally hidden.
 const allowedCategories = new Set([
   "Salads",
   "Rolls",
-  "Protein",
   "Protein Shakes",
   "Soups",
-  "Herbal Tea",
   "Tea",
   "Fruit Juices",
   "Veg Juices",
@@ -76,8 +74,8 @@ function normalizeMenuItem(item: MenuItem): MenuItem {
   };
 }
 
-// Get all current menu items, excluding legacy categories and normalizing
-// the items whose nutrition is defined by the supplied Varahi menu.
+// Get current customer-facing menu items, excluding legacy categories and
+// normalizing nutrition/category values defined by the supplied menu.
 export async function getMenu() {
   const snapshot = await getDocs(menuRef);
 
