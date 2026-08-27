@@ -9,12 +9,11 @@ import { useCart } from "@/components/cart/CartContext";
 import RestaurantStatus from "@/components/RestaurantStatus/RestaurantStatus";
 
 const navLinks = [
-  { name: "Home", href: "#home" },
+  { name: "Home", href: "/" },
   { name: "Menu", href: "#menu" },
   { name: "About", href: "#about" },
   { name: "Gallery", href: "#gallery" },
   { name: "Contact", href: "#contact" },
-  // Always open the subscription section on the main website.
   { name: "Subscriptions", href: "/#subscriptions" },
   { name: "My Subscription", href: "/my-subscription" },
 ];
@@ -34,9 +33,7 @@ export default function Navbar() {
         "svg.lucide-shopping-cart"
       );
 
-      if (!shoppingCartIcon) {
-        return false;
-      }
+      if (!shoppingCartIcon) return false;
 
       const style = window.getComputedStyle(button);
       const rect = button.getBoundingClientRect();
@@ -49,9 +46,7 @@ export default function Navbar() {
       );
     });
 
-    if (cartButton) {
-      cartButton.click();
-    }
+    if (cartButton) cartButton.click();
   };
 
   const handleOrderNow = () => {
@@ -64,10 +59,7 @@ export default function Navbar() {
           window.pageYOffset -
           120;
 
-        window.scrollTo({
-          top: y,
-          behavior: "smooth",
-        });
+        window.scrollTo({ top: y, behavior: "smooth" });
       }
 
       return;
@@ -89,10 +81,7 @@ export default function Navbar() {
             window.pageYOffset -
             120;
 
-          window.scrollTo({
-            top: y,
-            behavior: "smooth",
-          });
+          window.scrollTo({ top: y, behavior: "smooth" });
         }
       }, 100);
 
@@ -109,10 +98,7 @@ export default function Navbar() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="mt-4 rounded-2xl border border-white/10 bg-black/50 backdrop-blur-xl">
           <div className="flex h-[72px] items-center justify-between px-4 sm:px-6">
-            <Link
-              href="/"
-              className="flex items-center gap-3 min-w-0"
-            >
+            <Link href="/" className="flex items-center gap-3 min-w-0">
               <div className="h-10 w-10 shrink-0 rounded-full bg-[#E63946] flex items-center justify-center font-bold text-white text-xl">
                 V
               </div>
@@ -121,22 +107,20 @@ export default function Navbar() {
                 <h1 className="text-white font-bold text-lg whitespace-nowrap">
                   Varahi Eat & Fit
                 </h1>
-
-                <p className="text-xs text-white/50">
-                  Healthy Restaurant
-                </p>
+                <p className="text-xs text-white/50">Healthy Restaurant</p>
               </div>
             </Link>
 
             <nav className="hidden lg:flex items-center gap-8">
               {navLinks.map((item) => (
-                <a
+                <Link
                   key={item.name}
                   href={item.href}
+                  onClick={() => setMobileOpen(false)}
                   className="text-white/70 hover:text-white transition"
                 >
                   {item.name}
-                </a>
+                </Link>
               ))}
             </nav>
 
@@ -167,11 +151,7 @@ export default function Navbar() {
                 className="h-11 w-11 rounded-xl border border-white/10 bg-black/30 flex items-center justify-center text-white hover:bg-white/10 transition"
                 onClick={() => setMobileOpen(!mobileOpen)}
               >
-                {mobileOpen ? (
-                  <X className="w-6 h-6" />
-                ) : (
-                  <Menu className="w-6 h-6" />
-                )}
+                {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
             </div>
           </div>
@@ -180,14 +160,14 @@ export default function Navbar() {
             <div className="lg:hidden border-t border-white/10 p-6 bg-black/80 backdrop-blur-xl">
               <div className="flex flex-col gap-5">
                 {navLinks.map((item) => (
-                  <a
+                  <Link
                     key={item.name}
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
                     className="text-white/70 hover:text-white transition"
                   >
                     {item.name}
-                  </a>
+                  </Link>
                 ))}
 
                 <button
