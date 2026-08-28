@@ -109,9 +109,10 @@ function SubscriptionCheckoutContent() {
       const customerEmail = auth.currentUser?.email || "";
       const customerPhone = auth.currentUser?.phoneNumber || "";
 
-      const subscriptionId = await createSubscriptionDraft({ userId, customerName, customerEmail, customerPhone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: start.toISOString(), endDate: end.toISOString(), deliveryTime: formatTime(deliveryTime), address, proteinPerMeal: protein, caloriesPerMeal: calories, instructions, skippedMeals: 0, paymentStatus: "PENDING" });
+      const checkoutPlan = plan;
+      const subscriptionId = await createSubscriptionDraft({ userId, customerName, customerEmail, customerPhone, planId: checkoutPlan.id, planName: checkoutPlan.name, amount: checkoutPlan.price, status: "PENDING_PAYMENT", startDate: start.toISOString(), endDate: end.toISOString(), deliveryTime: formatTime(deliveryTime), address, proteinPerMeal: protein, caloriesPerMeal: calories, instructions, skippedMeals: 0, paymentStatus: "PENDING" });
 
-      const res = await fetch("/api/cashfree/create-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: plan.price, customerId: userId, customerName, customerPhone: customerPhone || "9999999999", customerEmail, subscriptionId }) });
+      const res = await fetch("/api/cashfree/create-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: checkoutPlan.price, customerId: userId, customerName, customerPhone: customerPhone || "9999999999", customerEmail, subscriptionId }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to create payment");
       if (data.demo) { toast.error("Cashfree is not configured. Add the Cashfree keys in Vercel."); return; }
