@@ -1,6 +1,6 @@
-import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import { activateDeliverySlotReservation, releaseDeliverySlotReservation, reserveDeliverySlot, type DeliverySlot } from "@/lib/deliverySlotService";
+import { releaseDeliverySlotReservation, reserveDeliverySlot, type DeliverySlot } from "@/lib/deliverySlotService";
 
 export type SkippedMealRecord = { id: string; skippedAt: string; expiresAt: string; scheduledFor?: string; scheduledTime?: string; status: "AVAILABLE" | "SCHEDULED" | "USED" | "EXPIRED" };
 export type Subscription = { id?: string; userId: string; customerName: string; phone: string; planId: string; planName: string; amount: number; status: "PENDING_PAYMENT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED"; startDate: string; endDate: string; deliverySlot: DeliverySlot; deliveryTime: string; address: string; proteinPerMeal: number; caloriesPerMeal: number; instructions: string; skippedMeals: number; skippedMealRecords?: SkippedMealRecord[]; paymentOrderId?: string; paymentId?: string; paymentStatus?: "PENDING" | "SUCCESS" | "FAILED"; paymentVerifiedAt?: unknown; paymentFailedAt?: unknown; slotReservationId?: string; slotReservationExpiresAt?: string; createdAt?: unknown; updatedAt?: unknown };
@@ -10,12 +10,8 @@ export async function createSubscriptionDraft(data: Omit<Subscription, "id" | "c
   if (!data.customerName.trim()) throw new Error("Customer name is required");
   if (!/^[6-9]\d{9}$/.test(data.phone)) throw new Error("Enter a valid 10-digit phone number");
   const ref = await addDoc(collection(db, "subscriptions"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-  try {
-    const reservation = await reserveDeliverySlot(data.deliverySlot, ref.id);
-    await updateDoc(ref, { slotReservationId: reservation.reservationId, slotReservationExpiresAt: reservation.expiresAt, updatedAt: serverTimestamp() });
-  } catch (error) {
-    throw error;
-  }
+  const reservation = await reserveDeliverySlot(data.deliverySlot, ref.id);
+  await updateDoc(ref, { slotReservationId: reservation.reservationId, slotReservationExpiresAt: reservation.expiresAt, updatedAt: serverTimestamp() });
   return ref.id;
 }
 
@@ -48,23 +44,27 @@ export function subscribeToActiveSubscription(userId: string, callback: (value: 
   return subscribeToActiveSubscriptions(userId, (subscriptions) => callback(subscriptions[0] || null));
 }
 
-export async function activateSubscription(id: string, payment?: { orderId?: string; paymentId?: string }) {
+/** Payment activation is server-controlled by the verified Cashfree webhook. */
+export async function activateSubscription(id: string, _payment?: { orderId?: string; paymentId?: string }) {
   const user = auth.currentUser; if (!user) throw new Error("Sign in required");
-  const ref = doc(db, "subscriptions", id); const currentSnap = await getDoc(ref);
-  if (!currentSnap.exists() || currentSnap.data().userId !== user.uid) throw new Error("Subscription not found");
-  const current = currentSnap.data() as Subscription;
+  const ref = doc(db, "subscriptions", id);
+  const initial = await getDoc(ref);
+  if (!initial.exists() || initial.data().userId !== user.uid) throw new Error("Subscription not found");
+  const current = initial.data() as Subscription;
   if (current.status === "CANCELLED" || current.status === "COMPLETED") throw new Error("This subscription can no longer be activated");
-  if (current.status === "ACTIVE") return;
-  if (!current.slotReservationId) throw new Error("Your delivery slot reservation is missing. Please restart checkout.");
-  await activateDeliverySlotReservation(current.slotReservationId);
-  await runTransaction(db, async (transaction) => {
-    const snap = await transaction.get(ref);
+  if (current.status === "ACTIVE" && current.paymentStatus === "SUCCESS") return;
+
+  // Cashfree webhook performs the trusted state transition. Wait briefly for
+  // that server update instead of writing payment SUCCESS from the browser.
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const snap = await getDoc(ref);
     if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found");
     const latest = snap.data() as Subscription;
-    if (latest.status === "ACTIVE") return;
+    if (latest.status === "ACTIVE" && latest.paymentStatus === "SUCCESS") return;
     if (latest.status === "CANCELLED" || latest.status === "COMPLETED") throw new Error("This subscription can no longer be activated");
-    transaction.update(ref, { status: "ACTIVE", paymentStatus: "SUCCESS", ...(payment?.orderId ? { paymentOrderId: payment.orderId } : {}), ...(payment?.paymentId ? { paymentId: payment.paymentId } : {}), paymentVerifiedAt: serverTimestamp(), updatedAt: serverTimestamp() });
-  });
+  }
+  throw new Error("Payment is still being verified. Please check your subscription again in a moment.");
 }
 
 export async function markSubscriptionPaymentFailed(id: string) {
