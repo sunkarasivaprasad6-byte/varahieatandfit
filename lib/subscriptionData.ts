@@ -110,7 +110,7 @@ const goldenMeals: Record<string, SubscriptionMeal> = {
   sat: {
     name: "Veg Roll + Sprout Salad + Juice",
     image:
-      "https://images.unsplash.com/photo-1719282431565-3b30bb7d2658?auto=format&fit=crop&w=900&q=80",
+      "/images/veg_roll_sprout_salad_juice_web.jpg",
     calories: 273,
     protein: 17,
   },
