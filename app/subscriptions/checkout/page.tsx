@@ -15,7 +15,7 @@ import QRCode from "react-qr-code";
 
 type DraftState = { name: string; phone: string; slot: DeliverySlot | ""; instructions: string; address: string; protein: number; step: number; day: (typeof DAYS)[number] };
 const DRAFT_KEY = "varahi-subscription-checkout";
-const UPI_VPA = "9014863642";
+const UPI_VPA = "rajasekar.bukke@oksbi";
 const UPI_NAME = "Varahi Eat & Fit";
 
 function proteinRange(actual: number) {
