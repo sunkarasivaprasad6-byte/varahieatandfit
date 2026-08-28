@@ -26,13 +26,13 @@ export async function POST(request: Request) {
     if (!email || allowedAdmins.length === 0 || !allowedAdmins.includes(email)) {
       return NextResponse.json({ error: "Admin access is not enabled for this account" }, { status: 403 });
     }
-
     if (!authTime || now - authTime > 5 * 60) {
       return NextResponse.json({ error: "Recent sign-in required" }, { status: 401 });
     }
 
     if (decoded.admin !== true) {
-      await adminAuth.setCustomUserClaims(decoded.uid, { admin: true });
+      const user = await adminAuth.getUser(decoded.uid);
+      await adminAuth.setCustomUserClaims(decoded.uid, { ...(user.customClaims || {}), admin: true });
     }
 
     const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn: EXPIRES_IN });
