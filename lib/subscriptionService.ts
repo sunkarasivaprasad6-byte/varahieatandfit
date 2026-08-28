@@ -9,7 +9,10 @@ export async function createSubscriptionDraft(data: Omit<Subscription, "id" | "c
   if (!data.deliverySlot) throw new Error("Please select a delivery slot");
   if (!data.customerName.trim()) throw new Error("Customer name is required");
   if (!/^[6-9]\d{9}$/.test(data.phone)) throw new Error("Enter a valid 10-digit phone number");
-  const ref = await addDoc(collection(db, "subscriptions"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  // Every new subscription must explicitly start in the payment-pending state.
+  // This matches the production Firestore rule and prevents a browser from
+  // creating a subscription that looks paid before Cashfree verifies it.
+  const ref = await addDoc(collection(db, "subscriptions"), { ...data, paymentStatus: data.paymentStatus || "PENDING", createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   const reservation = await reserveDeliverySlot(data.deliverySlot, ref.id);
   await updateDoc(ref, { slotReservationId: reservation.reservationId, slotReservationExpiresAt: reservation.expiresAt, updatedAt: serverTimestamp() });
   return ref.id;
