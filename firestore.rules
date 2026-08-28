@@ -1,50 +1,17 @@
 rules_version = '2';
 
 // Production Firestore rules for Varahi Eat & Fit.
-//
-// IMPORTANT:
-// - Admin access is granted only through the Firebase Auth custom claim
-//   `admin == true`.
-// - Cashfree/webhook/server operations use the Firebase Admin SDK and therefore
-//   bypass Firestore Security Rules. They must be protected by server-side auth.
-// - Client-side delivery-slot counter/reservation writes are intentionally
-//   blocked. Those mutations should be performed by trusted server code so a
-//   customer cannot manipulate capacity or another customer's reservation.
+// Sensitive payment, delivery-capacity and admin operations are server-controlled.
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
-    }
+    function signedIn() { return request.auth != null; }
+    function admin() { return signedIn() && request.auth.token.admin == true; }
+    function owner(uid) { return signedIn() && request.auth.uid == uid; }
+    function ownsSubscriptionDocument() { return signedIn() && resource.data.userId == request.auth.uid; }
+    function ownsNewSubscriptionDocument() { return signedIn() && request.resource.data.userId == request.auth.uid; }
+    function ownsOrderDocument() { return signedIn() && resource.data.userId == request.auth.uid; }
+    function ownsNewOrderDocument() { return signedIn() && request.resource.data.userId == request.auth.uid; }
 
-    function admin() {
-      return signedIn() && request.auth.token.admin == true;
-    }
-
-    function owner(uid) {
-      return signedIn() && request.auth.uid == uid;
-    }
-
-    function ownsUserDocument(uid) {
-      return owner(uid);
-    }
-
-    function ownsSubscriptionDocument() {
-      return signedIn() && resource.data.userId == request.auth.uid;
-    }
-
-    function ownsNewSubscriptionDocument() {
-      return signedIn() && request.resource.data.userId == request.auth.uid;
-    }
-
-    function ownsOrderDocument() {
-      return signedIn() && resource.data.userId == request.auth.uid;
-    }
-
-    function ownsNewOrderDocument() {
-      return signedIn() && request.resource.data.userId == request.auth.uid;
-    }
-
-    // Public customer-facing content.
     match /menu/{menuId} {
       allow read: if true;
       allow write: if admin();
@@ -56,22 +23,17 @@ service cloud.firestore {
     }
 
     match /restaurantSettings/{settingId} {
-      // Customers need the restaurant status to decide whether normal orders
-      // are currently available.
       allow read: if true;
       allow write: if admin();
     }
 
-    // Customer profile data.
     match /users/{userId} {
-      allow read: if ownsUserDocument(userId) || admin();
-      allow create: if ownsUserDocument(userId);
-      allow update: if ownsUserDocument(userId) || admin();
+      allow read: if owner(userId) || admin();
+      allow create: if owner(userId);
+      allow update: if owner(userId) || admin();
       allow delete: if admin();
     }
 
-    // Subscriptions are private to the owning customer. Payment status and
-    // activation are server-controlled; clients cannot change those fields.
     match /subscriptions/{subscriptionId} {
       allow read: if admin() || ownsSubscriptionDocument();
 
@@ -79,14 +41,15 @@ service cloud.firestore {
         && request.resource.data.status == 'PENDING_PAYMENT'
         && request.resource.data.paymentStatus == 'PENDING';
 
+      // Customers may edit only checkout/profile/meal-preference fields and
+      // payment-pending metadata. Payment SUCCESS, activation, and delivery-slot
+      // capacity changes are server-controlled.
       allow update: if admin() || (
         ownsSubscriptionDocument()
         && request.resource.data.userId == resource.data.userId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'customerName',
           'phone',
-          'deliverySlot',
-          'deliveryTime',
           'address',
           'instructions',
           'proteinPerMeal',
@@ -94,55 +57,69 @@ service cloud.firestore {
           'skippedMealRecords',
           'updatedAt',
           'slotReservationId',
-          'slotReservationExpiresAt'
+          'slotReservationExpiresAt',
+          'paymentOrderId',
+          'paymentStatus',
+          'paymentFailedAt'
         ])
+        && (
+          request.resource.data.status == resource.data.status
+          || (
+            resource.data.status == 'PENDING_PAYMENT'
+            && request.resource.data.status == 'CANCELLED'
+            && request.resource.data.paymentStatus == 'FAILED'
+          )
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'paymentOrderId', 'paymentStatus', 'paymentFailedAt'
+          ])
+          || (
+            resource.data.paymentStatus != 'SUCCESS'
+            && (
+              request.resource.data.paymentStatus == 'PENDING'
+              || (
+                request.resource.data.paymentStatus == 'FAILED'
+                && request.resource.data.status == 'CANCELLED'
+              )
+            )
+          )
+        )
       );
 
       allow delete: if admin();
     }
 
-    // Normal food orders. Customers can create/read their own orders; status,
-    // payment verification, delivery OTP and deletion are admin/server duties.
     match /orders/{orderId} {
       allow read: if admin() || ownsOrderDocument();
-
       allow create: if ownsNewOrderDocument();
-
       allow update: if admin() || (
         ownsOrderDocument()
         && request.resource.data.userId == resource.data.userId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'address',
-          'phone',
-          'name',
-          'instructions',
-          'updatedAt'
+          'address', 'phone', 'name', 'instructions', 'updatedAt'
         ])
       );
-
       allow delete: if admin();
     }
 
-    // Delivery availability can be displayed publicly, but clients must not be
-    // able to modify capacity counters.
+    // Public availability only. Counters are never client-writable.
     match /deliverySlotCounters/{slotId} {
       allow read: if true;
       allow write: if admin();
     }
 
-    // Reservations contain subscription identifiers and are therefore private.
-    // Creation/activation/release should be moved behind trusted server code.
+    // Reservations are server-only because they control real delivery capacity.
     match /deliverySlotReservations/{reservationId} {
       allow read: if admin();
       allow write: if admin();
     }
 
-    // Internal Cashfree webhook idempotency records are server-only.
+    // Cashfree webhook idempotency records are server-only.
     match /cashfreeWebhookEvents/{eventId} {
       allow read, write: if admin();
     }
 
-    // Any collection not explicitly listed above is denied by default.
     match /{document=**} {
       allow read, write: if false;
     }
