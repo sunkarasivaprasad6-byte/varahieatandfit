@@ -5,17 +5,17 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { listSubscriptions, type Subscription } from "@/lib/subscriptionService";
+import { listSubscriptions, type Subscription, updateSubscription } from "@/lib/subscriptionService";
+import { getPlan } from "@/lib/subscriptionData";
 
 function paymentLabel(item: Subscription) {
-  if (item.paymentStatus === "SUCCESS" || item.status === "ACTIVE") return "PAID";
-  if (item.paymentStatus === "FAILED" || item.status === "CANCELLED") return "FAILED";
+  if (item.status === "ACTIVE") return "PAID";
+  if (item.status === "CANCELLED") return "REJECTED";
   return "PENDING";
 }
-
 function paymentClass(status: string) {
   if (status === "PAID") return "bg-green-500/10 text-green-400";
-  if (status === "FAILED") return "bg-red-500/10 text-red-400";
+  if (status === "REJECTED") return "bg-red-500/10 text-red-400";
   return "bg-yellow-500/10 text-yellow-400";
 }
 
@@ -23,106 +23,68 @@ export default function AdminSubscriptions() {
   const r = useRouter();
   const [items, setItems] = useState<Subscription[]>([]);
   const [checking, setChecking] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
 
   async function load() {
+    try { setItems(await listSubscriptions()); }
+    catch (error) { console.error("Failed to load subscriptions", error); setMessage("Unable to load subscriptions."); }
+  }
+  useEffect(() => onAuthStateChanged(auth, (u) => { if (!u) r.replace("/login"); else { setChecking(false); load(); } }), [r]);
+
+  const stats = useMemo(() => ({
+    active: items.filter((x) => x.status === "ACTIVE").length,
+    pending: items.filter((x) => x.status === "PENDING_PAYMENT").length,
+    failed: items.filter((x) => x.status === "CANCELLED").length,
+    skipped: items.reduce((a, x) => a + (x.skippedMeals || 0), 0),
+    plans: new Set(items.map((x) => x.planId)).size,
+  }), [items]);
+
+  async function confirmPayment(item: Subscription) {
+    if (!item.id) return;
+    setBusy(item.id); setMessage("");
     try {
-      setItems(await listSubscriptions());
-    } catch (error) {
-      console.error("Failed to load subscriptions", error);
-    }
+      const start = new Date();
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      await updateSubscription(item.id, {
+        status: "ACTIVE",
+        paymentStatus: "SUCCESS",
+        paymentVerifiedAt: start.toISOString(),
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+      });
+      setMessage(`${item.customerName} subscription confirmed.`);
+      await load();
+    } catch (error) { console.error(error); setMessage("Unable to confirm subscription."); }
+    finally { setBusy(null); }
   }
 
-  useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
-      if (!u) r.replace("/login");
-      else {
-        setChecking(false);
-        load();
-      }
-    });
-  }, [r]);
-
-  const stats = useMemo(
-    () => ({
-      active: items.filter((x) => x.status === "ACTIVE").length,
-      pending: items.filter((x) => x.status === "PENDING_PAYMENT").length,
-      failed: items.filter((x) => paymentLabel(x) === "FAILED").length,
-      skipped: items.reduce((a, x) => a + (x.skippedMeals || 0), 0),
-      plans: new Set(items.map((x) => x.planId)).size,
-    }),
-    [items]
-  );
-
-  if (checking) {
-    return (
-      <main className="grid min-h-screen place-items-center bg-[#0F0F10] text-white/50">
-        Checking login…
-      </main>
-    );
+  async function rejectPayment(item: Subscription) {
+    if (!item.id) return;
+    if (!window.confirm(`Reject payment for ${item.customerName || "this customer"}?`)) return;
+    setBusy(item.id); setMessage("");
+    try {
+      await updateSubscription(item.id, { status: "CANCELLED", paymentStatus: "FAILED", paymentFailedAt: new Date().toISOString() });
+      setMessage(`${item.customerName} payment rejected.`);
+      await load();
+    } catch (error) { console.error(error); setMessage("Unable to reject payment."); }
+    finally { setBusy(null); }
   }
 
-  return (
-    <main className="min-h-screen bg-[#0F0F10] px-6 py-10 text-white">
-      <div className="mx-auto max-w-7xl">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-[#E63946]">Admin</p>
-            <h1 className="mt-2 text-4xl font-bold">Subscriptions</h1>
-            <p className="mt-2 text-sm text-white/40">Payment, plan and delivery state for every customer subscription.</p>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/admin/operations" className="rounded-full bg-[#E63946] px-5 py-2 text-sm font-bold">Delivery Operations</Link>
-            <button onClick={() => r.push("/admin")} className="rounded-full border border-white/10 px-5 py-2 text-sm">Menu admin</button>
-          </div>
-        </div>
+  if (checking) return <main className="grid min-h-screen place-items-center bg-[#0F0F10] text-white/50">Checking login…</main>;
+  const pending = items.filter((x) => x.status === "PENDING_PAYMENT");
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="rounded-2xl border border-white/10 bg-[#171717] p-5"><p className="text-xs text-white/40">Active</p><p className="mt-2 text-3xl font-bold">{stats.active}</p></div>
-          <div className="rounded-2xl border border-white/10 bg-[#171717] p-5"><p className="text-xs text-white/40">Pending payment</p><p className="mt-2 text-3xl font-bold">{stats.pending}</p></div>
-          <div className="rounded-2xl border border-white/10 bg-[#171717] p-5"><p className="text-xs text-white/40">Failed / cancelled</p><p className="mt-2 text-3xl font-bold">{stats.failed}</p></div>
-          <div className="rounded-2xl border border-white/10 bg-[#171717] p-5"><p className="text-xs text-white/40">Skipped meals</p><p className="mt-2 text-3xl font-bold">{stats.skipped}</p></div>
-          <div className="rounded-2xl border border-white/10 bg-[#171717] p-5"><p className="text-xs text-white/40">Plans</p><p className="mt-2 text-3xl font-bold">{stats.plans}</p></div>
-        </div>
+  return <main className="min-h-screen bg-[#0F0F10] px-6 py-10 text-white"><div className="mx-auto max-w-7xl">
+    <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs uppercase tracking-[0.3em] text-[#E63946]">Admin</p><h1 className="mt-2 text-4xl font-bold">Subscriptions</h1><p className="mt-2 text-sm text-white/40">Payment, plan and delivery state for every customer subscription.</p></div><div className="flex gap-2"><Link href="/admin/operations" className="rounded-full bg-[#E63946] px-5 py-2 text-sm font-bold">Delivery Operations</Link><button onClick={() => r.push("/admin")} className="rounded-full border border-white/10 px-5 py-2 text-sm">Menu admin</button></div></div>
+    <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5"><Stat label="Active" value={stats.active}/><Stat label="Pending payment" value={stats.pending}/><Stat label="Failed / cancelled" value={stats.failed}/><Stat label="Skipped meals" value={stats.skipped}/><Stat label="Plans" value={stats.plans}/></div>
+    {message && <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">{message}</div>}
 
-        <div className="mt-6 space-y-3">
-          {items.length === 0 ? (
-            <div className="rounded-2xl border border-white/10 bg-[#171717] p-8 text-white/40">No subscriptions yet.</div>
-          ) : items.map((x) => {
-            const payment = paymentLabel(x);
-            return (
-              <div key={x.id} className="rounded-2xl border border-white/10 bg-[#171717] p-5">
-                <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr_1fr_1fr_1fr] lg:items-center">
-                  <div>
-                    <p className="font-bold">{x.planName}</p>
-                    <p className="mt-1 text-xs text-white/35">User {x.userId}</p>
-                    <p className="mt-2 text-sm">₹{x.amount}/week</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-white/35">Payment</p>
-                    <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs ${paymentClass(payment)}`}>{payment}</span>
-                    {x.paymentId && <p className="mt-2 text-[11px] text-white/30">Payment ID: {x.paymentId}</p>}
-                  </div>
-                  <div>
-                    <p className="text-xs text-white/35">Subscription</p>
-                    <span className="mt-2 inline-flex rounded-full bg-white/5 px-3 py-1 text-xs text-white/70">{x.status}</span>
-                  </div>
-                  <div>
-                    <p className="text-xs text-white/35">Delivery</p>
-                    <p className="mt-1 text-sm">{x.deliveryTime || "Not set"}</p>
-                    <p className="mt-1 text-xs text-white/35">{x.address || "No address"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-white/35">Nutrition / skips</p>
-                    <p className="mt-1 text-sm">{x.proteinPerMeal}g · {x.caloriesPerMeal} kcal</p>
-                    <p className="mt-1 text-xs text-white/35">Skipped: {x.skippedMeals || 0}</p>
-                  </div>
-                </div>
-                {x.paymentOrderId && <p className="mt-4 border-t border-white/5 pt-3 text-[11px] text-white/25">Cashfree order: {x.paymentOrderId}</p>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </main>
-  );
+    <section className="mt-8 rounded-3xl border border-yellow-500/20 bg-[#171717] p-6"><div className="flex items-center justify-between gap-4"><div><h2 className="text-2xl font-bold">Payments to Confirm</h2><p className="mt-1 text-sm text-white/40">Check the UPI payment in your bank/UPI app before confirming.</p></div><span className="rounded-full bg-yellow-500/10 px-3 py-1 text-xs text-yellow-300">{pending.length} pending</span></div>
+      <div className="mt-5 space-y-3">{pending.map((x) => <div key={x.id} className="rounded-2xl border border-white/10 bg-black/20 p-5"><div className="grid gap-5 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto] lg:items-center"><div><p className="font-bold">{x.customerName || "Customer"}</p><p className="mt-1 text-sm text-white/55">{x.phone || "—"}</p></div><div><p className="text-xs text-white/35">Plan</p><p className="mt-1 font-semibold">{x.planName}</p><p className="text-xs text-white/40">₹{x.amount}/week</p></div><div><p className="text-xs text-white/35">Nutrition</p><p className="mt-1">{x.proteinPerMeal}g protein · {x.caloriesPerMeal} kcal</p></div><div><p className="text-xs text-white/35">Delivery</p><p className="mt-1">{x.deliverySlot || x.deliveryTime}</p><p className="text-xs text-white/40">{x.address || "No address"}</p></div><div className="flex gap-2"><button disabled={busy === x.id} onClick={() => confirmPayment(x)} className="rounded-xl bg-green-600 px-4 py-3 text-xs font-bold disabled:opacity-50">{busy === x.id ? "Saving…" : "✓ Confirm"}</button><button disabled={busy === x.id} onClick={() => rejectPayment(x)} className="rounded-xl border border-red-500/30 px-4 py-3 text-xs font-bold text-red-300 disabled:opacity-50">Reject</button></div></div>{x.instructions && <div className="mt-4 border-t border-white/5 pt-3 text-sm text-white/55"><b className="text-white/75">Special instructions:</b> {x.instructions}</div>}</div>)}{pending.length === 0 && <p className="p-5 text-white/40">No payments waiting for confirmation.</p>}</div>
+    </section>
+
+    <div className="mt-8 space-y-3">{items.map((x) => { const payment = paymentLabel(x); return <div key={x.id} className="rounded-2xl border border-white/10 bg-[#171717] p-5"><div className="grid gap-5 lg:grid-cols-[1.2fr_1fr_1fr_1fr_1fr] lg:items-center"><div><p className="font-bold">{x.customerName || x.planName}</p><p className="mt-1 text-xs text-white/35">{x.phone || `User ${x.userId}`}</p><p className="mt-2 text-sm">{x.planName} · ₹{x.amount}/week</p></div><div><p className="text-xs text-white/35">Payment</p><span className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs ${paymentClass(payment)}`}>{payment}</span></div><div><p className="text-xs text-white/35">Subscription</p><span className="mt-2 inline-flex rounded-full bg-white/5 px-3 py-1 text-xs text-white/70">{x.status}</span></div><div><p className="text-xs text-white/35">Delivery</p><p className="mt-1 text-sm">{x.deliveryTime || "Not set"}</p><p className="mt-1 text-xs text-white/35">{x.address || "No address"}</p></div><div><p className="text-xs text-white/35">Nutrition / skips</p><p className="mt-1 text-sm">{x.proteinPerMeal}g · {x.caloriesPerMeal} kcal</p><p className="mt-1 text-xs text-white/35">Skipped: {x.skippedMeals || 0}</p></div></div>{x.instructions && <p className="mt-4 border-t border-white/5 pt-3 text-xs text-white/40"><b>Instructions:</b> {x.instructions}</p>}{x.startDate && <p className="mt-2 text-xs text-white/30">Start: {new Date(x.startDate).toLocaleString()} · End: {x.endDate ? new Date(x.endDate).toLocaleString() : "—"}</p>}</div>; })}</div>
+  </div></main>;
 }
+function Stat({label,value}:{label:string;value:number}){return <div className="rounded-2xl border border-white/10 bg-[#171717] p-5"><p className="text-xs text-white/40">{label}</p><p className="mt-2 text-3xl font-bold">{value}</p></div>}
