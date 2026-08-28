@@ -127,35 +127,35 @@ const diamondMeals: Record<string, SubscriptionMeal> = {
   tue: {
     name: "Egg Roll + Egg Salad + Gold Standard Whey Protein",
     image:
-      "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=900&auto=format&fit=crop&q=80",
+      "/images/second.jpg",
     calories: 1642,
     protein: 95,
   },
   wed: {
     name: "Chicken Roll + Fruit Salad + Juice + Boiled Egg",
     image:
-      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&auto=format&fit=crop&q=80",
+      "/images/third.jpg",
     calories: 390,
     protein: 32,
   },
   thu: {
     name: "Boiled Egg + Chicken Roll + Paneer Salad + Corn Salad + Juice",
     image:
-      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&auto=format&fit=crop&q=80",
+      "/images/fourth.jpg",
     calories: 670,
     protein: 51,
   },
   fri: {
     name: "Paneer Roll + Lean Chicken Salad + Juice + Boiled Egg",
     image:
-      "https://plus.unsplash.com/premium_photo-1664640733581-a9175477cd11?w=900&auto=format&fit=crop&q=80",
+      "/images/fifth.jpg",
     calories: 605,
     protein: 58,
   },
   sat: {
     name: "Veg Roll + Veg Salad + Gold Standard Whey Protein",
     image:
-      "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=900&auto=format&fit=crop&q=80",
+      "/images/sixth.jpg",
     calories: 1355,
     protein: 74,
   },
