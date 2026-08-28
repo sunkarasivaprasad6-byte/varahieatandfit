@@ -14,6 +14,8 @@ import { ChevronLeft, ExternalLink, LocateFixed, MapPin, MessageSquare, ShieldCh
 
 type DraftState = { name: string; phone: string; slot: DeliverySlot | ""; instructions: string; address: string; protein: number; step: number; day: (typeof DAYS)[number] };
 const DRAFT_KEY = "varahi-subscription-checkout";
+const UPI_VPA = "9014863642";
+const UPI_NAME = "Varahi Eat & Fit";
 
 function proteinRange(actual: number) {
   return { min: Math.max(0, actual - 2), max: actual + 6 };
@@ -37,6 +39,7 @@ function SubscriptionCheckoutContent() {
   const [locationDetected, setLocationDetected] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [paymentDone, setPaymentDone] = useState(false);
 
   useEffect(() => onAuthStateChanged(auth, (u) => setUserId(u?.uid || null)), []);
   useEffect(() => {
@@ -45,6 +48,7 @@ function SubscriptionCheckoutContent() {
       if (saved) {
         setName(saved.name || ""); setPhone(saved.phone || ""); setSlot(saved.slot || ""); setInstructions(saved.instructions || ""); setAddress(saved.address || "");
         setDay(saved.day || "MON"); setStep(typeof saved.step === "number" ? saved.step : 0);
+        setProtein(Number(saved.protein) || 30);
       }
     } catch {}
     getDeliverySlotAvailability().then(setSlots).catch(() => toast.error("Unable to load delivery slot availability."));
@@ -87,30 +91,35 @@ function SubscriptionCheckoutContent() {
     if (step < 5) { setStep(nextStep); return; }
     await startPayment();
   }
-  async function startPayment() {
-    if (!userId) { saveDraft(5); const returnTo = `/subscriptions/checkout?plan=${encodeURIComponent(plan.id)}`; window.location.href = `/account?returnTo=${encodeURIComponent(returnTo)}`; return; }
-    if (!slot) { toast.error("Select a delivery slot."); setStep(0); return; }
-    if (protein < range.min || protein > range.max) { toast.error(`Protein must be between ${range.min}g and ${range.max}g.`); setStep(1); return; }
+  function openUPI() {
+    const upiLink = `upi://pay?pa=${encodeURIComponent(UPI_VPA)}&pn=${encodeURIComponent(UPI_NAME)}&am=${encodeURIComponent(String(plan.price))}&cu=INR`;
+    window.location.href = upiLink;
+  }
+  async function submitPayment() {
+    if (!userId) {
+      saveDraft(5);
+      const returnTo = `/subscriptions/checkout?plan=${encodeURIComponent(plan.id)}`;
+      window.location.href = `/account?returnTo=${encodeURIComponent(returnTo)}`;
+      return;
+    }
+    if (!paymentDone) { toast.error("Complete the UPI payment and then tap 'I've Completed Payment'."); return; }
     setLoading(true);
     try {
       const selected = slots.find((x) => x.slot === slot);
       if (!selected?.available) throw new Error("That delivery slot is now full. Please choose another slot.");
       const start = new Date(); const end = new Date(start); end.setDate(start.getDate() + 6);
-      const subscriptionId = await createSubscriptionDraft({ userId, customerName: name.trim(), phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: start.toISOString(), endDate: end.toISOString(), deliverySlot: slot, deliveryTime: slot, address, proteinPerMeal: protein, caloriesPerMeal: meal.calories, instructions, skippedMeals: 0 });
-      const res = await fetch("/api/cashfree/create-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: plan.price, customerId: userId, customerName: name.trim(), customerPhone: phone, subscriptionId }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Unable to create payment");
-      if (data.demo) throw new Error("Cashfree is not configured. Add the Cashfree keys in Vercel.");
+      await createSubscriptionDraft({ userId, customerName: name.trim(), phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: start.toISOString(), endDate: end.toISOString(), deliverySlot: slot, deliveryTime: slot, address, proteinPerMeal: protein, caloriesPerMeal: meal.calories, instructions, skippedMeals: 0 });
       localStorage.removeItem(DRAFT_KEY);
-      const script = document.createElement("script"); script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
-      script.onload = () => { // @ts-ignore Cashfree global SDK
-        const cashfree = window.Cashfree({ mode: data.mode || "sandbox" }); cashfree.checkout({ paymentSessionId: data.paymentSessionId, redirectTarget: "_self" });
-      }; document.body.appendChild(script);
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Payment setup failed"); } finally { setLoading(false); }
+      toast.success("Payment submitted for verification. We will confirm your subscription shortly.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to submit payment");
+    } finally { setLoading(false); }
   }
+  async function startPayment() { await submitPayment(); }
 
   const isMap = address.startsWith("https://www.google.com/maps?q=");
   const steps = ["Customer & slot", "Meal", "Instructions", "Location", "Review", "Payment"];
+  const upiLink = `upi://pay?pa=${encodeURIComponent(UPI_VPA)}&pn=${encodeURIComponent(UPI_NAME)}&am=${encodeURIComponent(String(plan.price))}&cu=INR`;
   return <main className="min-h-screen bg-[#050505] px-5 pb-20 pt-24 text-white"><div className="mx-auto max-w-6xl">
     <Link href="/#subscriptions" className="mb-8 inline-flex items-center gap-2 text-sm text-white/45 hover:text-white"><ChevronLeft className="h-4 w-4"/> Plans</Link>
     <div className="mb-8 flex gap-3 overflow-x-auto pb-2">{steps.map((s,i)=><div key={s} className="flex min-w-max items-center gap-2 text-xs"><span className={`grid h-7 w-7 place-items-center rounded-full ${i<step?"bg-[#E63946]":i===step?"border border-[#E63946] text-[#E63946]":"border border-white/10 text-white/30"}`}>{i<step?"✓":i+1}</span><span className={i===step?"text-white":"text-white/30"}>{s}</span></div>)}</div>
@@ -122,8 +131,8 @@ function SubscriptionCheckoutContent() {
         {step===2&&<><h1 className="mt-3 text-3xl font-bold">Special instructions</h1><div className="mt-8"><MessageSquare className="mb-3 h-5 w-5 text-[#E63946]"/><textarea value={instructions} onChange={e=>setInstructions(e.target.value)} placeholder="Less spicy, no onion, etc." className="min-h-40 w-full rounded-2xl border border-white/10 bg-black/25 p-5 outline-none focus:border-[#E63946]"/></div></>}
         {step===3&&<><h1 className="mt-3 text-3xl font-bold">Delivery location</h1><p className="mt-2 text-sm text-white/40">Your name and phone have already been collected.</p><div className="mt-7"><div className="flex items-center gap-2 text-sm text-white/60"><MapPin className="h-5 w-5 text-[#E63946]"/>Address / location</div><textarea value={address} onChange={e=>{setAddress(e.target.value);setLocationDetected(false)}} placeholder="Enter your full delivery address..." className="mt-3 min-h-36 w-full rounded-2xl border border-white/10 bg-black/25 p-5 outline-none focus:border-[#E63946]"/>{isMap&&<a href={address} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-xs text-[#E63946]">Open detected location <ExternalLink className="h-3.5 w-3.5"/></a>}<button type="button" onClick={detectLocation} disabled={detectingLocation} className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#E63946]/40 bg-[#E63946]/10 p-4 font-bold text-[#E63946]"><LocateFixed className="h-5 w-5"/>{detectingLocation?"Detecting...":locationDetected?"Location detected":"Detect My Location"}</button></div></>}
         {step===4&&<><h1 className="mt-3 text-3xl font-bold">Review</h1><div className="mt-7 space-y-4 rounded-2xl bg-black/20 p-6 text-sm text-white/65"><p><b className="text-white">Customer:</b> {name} · {phone}</p><p><b className="text-white">Plan:</b> {plan.name} · ₹{plan.price}/week</p><p><b className="text-white">Delivery slot:</b> {slot}</p><p><b className="text-white">Address:</b> {isMap?<a href={address} target="_blank" rel="noreferrer" className="text-[#E63946]">Open Google Maps location</a>:address}</p><p><b className="text-white">Meal:</b> {meal.name}</p><p><b className="text-white">Protein:</b> {protein}g (allowed {range.min}–{range.max}g)</p><p><b className="text-white">Calories:</b> {meal.calories} kcal</p><p><b className="text-white">Instructions:</b> {instructions||"None"}</p></div></>}
-        {step===5&&<><h1 className="mt-3 text-3xl font-bold">Secure payment</h1><div className="mt-7 rounded-2xl border border-white/10 bg-black/20 p-6"><div className="flex gap-3"><ShieldCheck className="h-6 w-6 text-green-400"/><div><b>Cashfree secure checkout</b><p className="mt-1 text-sm text-white/40">Your subscription activates only after Cashfree confirms payment.</p></div></div></div></>}
-        <div className="mt-8 flex justify-between gap-3"><button type="button" disabled={step===0||loading} onClick={()=>{setStep(s=>s-1);saveDraft(step-1)}} className="rounded-full border border-white/10 px-6 py-3 text-sm font-bold disabled:opacity-30">Back</button><button type="button" disabled={loading} onClick={continueStep} className="rounded-full bg-[#E63946] px-7 py-3 font-bold">{loading?"Opening payment...":step===5?"Continue to Payment":"Continue"}</button></div>
+        {step===5&&<><h1 className="mt-3 text-3xl font-bold">UPI payment</h1><div className="mt-7 rounded-2xl border border-white/10 bg-black/20 p-6 text-center"><div className="mx-auto flex w-fit items-center justify-center rounded-2xl bg-white p-5"><Image src={`https://quickchart.io/qr?text=${encodeURIComponent(upiLink)}&size=220`} alt="UPI QR code" width={220} height={220} unoptimized /></div><p className="mt-5 text-sm text-white/45">Pay <b className="text-white">₹{plan.price}</b> to <b className="text-white">{UPI_VPA}</b></p><button type="button" onClick={openUPI} className="mt-6 rounded-2xl bg-green-600 px-8 py-4 font-bold text-white">Open UPI App</button><button type="button" onClick={()=>setPaymentDone(true)} className="mt-4 block w-full rounded-2xl bg-[#E63946] px-8 py-4 font-bold text-white">I've Completed Payment</button>{paymentDone&&<p className="mt-4 text-sm text-green-400">Payment marked as submitted for verification.</p>}</div></>}
+        <div className="mt-8 flex justify-between gap-3"><button type="button" disabled={step===0||loading} onClick={()=>{setStep(s=>s-1);saveDraft(step-1)}} className="rounded-full border border-white/10 px-6 py-3 text-sm font-bold disabled:opacity-30">Back</button><button type="button" disabled={loading} onClick={continueStep} className="rounded-full bg-[#E63946] px-7 py-3 font-bold">{loading?"Submitting...":step===5?"Submit Payment":"Continue"}</button></div>
       </section>
       <aside className="h-fit rounded-[28px] border border-white/10 bg-[#171717] p-6"><p className="text-xs uppercase tracking-[0.25em] text-white/35">Selected plan</p><h2 className="mt-2 text-2xl font-bold">{plan.name}</h2><p className="mt-1 text-sm text-white/45">₹{plan.price} / week</p><div className="relative mt-6 h-48 overflow-hidden rounded-2xl"><Image src={meal.image} alt={meal.name} fill className="object-cover" sizes="340px"/></div><p className="mt-4 text-sm font-semibold">{meal.name}</p><p className="mt-1 text-xs text-white/40">{meal.protein}g protein · {meal.calories} kcal</p><div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4 text-xs text-white/45">Delivery: <b className="text-white">{slot||"Choose a slot"}</b></div></aside>
     </div></div></main>;
