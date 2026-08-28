@@ -43,9 +43,13 @@ export default function PaymentSection({
       title: "PhonePe",
       subtitle: "Fast Payment",
       icon: (
-        <div className="w-12 h-12 flex items-center justify-center">
-          <Image src="/payment-logos/phonepe.png" alt="PhonePe" width={52} height={52} className="w-12 h-12 object-contain" />
-        </div>
+        <Image
+          src="/payment-logos/phonepe.png"
+          alt="PhonePe"
+          width={52}
+          height={52}
+          className="w-12 h-12 object-contain"
+        />
       ),
     },
     {
@@ -53,9 +57,13 @@ export default function PaymentSection({
       title: "Google Pay",
       subtitle: "Secure",
       icon: (
-        <div className="w-12 h-12 flex items-center justify-center">
-          <Image src="/payment-logos/googlepay.png" alt="Google Pay" width={52} height={52} className="w-12 h-12 object-contain" />
-        </div>
+        <Image
+          src="/payment-logos/googlepay.png"
+          alt="Google Pay"
+          width={52}
+          height={52}
+          className="w-12 h-12 object-contain"
+        />
       ),
     },
     {
@@ -63,9 +71,13 @@ export default function PaymentSection({
       title: "Paytm",
       subtitle: "UPI & Wallet",
       icon: (
-        <div className="w-12 h-12 flex items-center justify-center">
-          <Image src="/payment-logos/paytm.png" alt="Paytm" width={52} height={52} className="w-12 h-12 object-contain" />
-        </div>
+        <Image
+          src="/payment-logos/paytm.png"
+          alt="Paytm"
+          width={52}
+          height={52}
+          className="w-12 h-12 object-contain"
+        />
       ),
     },
     {
@@ -93,7 +105,9 @@ export default function PaymentSection({
     setTimeout(() => {
       document.removeEventListener("visibilitychange", handleVisibility);
       if (!appOpened) {
-        toast.error("No UPI app found. Scan the QR code or choose Cash on Delivery.");
+        toast.error(
+          "No UPI app found. Scan the QR code or choose Cash on Delivery."
+        );
       }
     }, 2000);
   }
@@ -122,7 +136,9 @@ export default function PaymentSection({
                 : "border-white/10 bg-[#222]"
             }`}
           >
-            <div className="h-14 mb-3 flex items-center justify-center">{item.icon}</div>
+            <div className="h-14 mb-3 flex items-center justify-center">
+              {item.icon}
+            </div>
             <h3 className="text-white font-bold">{item.title}</h3>
             <p className="text-white/50 text-sm mt-1">{item.subtitle}</p>
           </button>
@@ -138,9 +154,13 @@ export default function PaymentSection({
           </div>
 
           <h3 className="text-2xl font-bold text-white mt-6">Scan & Pay</h3>
-          <p className="text-white/60 mt-3">PhonePe • Google Pay • Paytm • BHIM • Any UPI App</p>
+          <p className="text-white/60 mt-3">
+            PhonePe • Google Pay • Paytm • BHIM • Any UPI App
+          </p>
 
-          <div className="text-[#E63946] text-4xl font-bold mt-6">₹{grandTotal}</div>
+          <div className="text-[#E63946] text-4xl font-bold mt-6">
+            ₹{grandTotal}
+          </div>
 
           <button
             type="button"
@@ -174,7 +194,9 @@ export default function PaymentSection({
             <ShieldCheck className="text-green-400" />
             <div>
               <h3 className="text-green-400 font-bold text-lg">Cash on Delivery</h3>
-              <p className="text-white/60 mt-1">Pay safely after receiving your delicious meal.</p>
+              <p className="text-white/60 mt-1">
+                Pay safely after receiving your delicious meal.
+              </p>
             </div>
           </div>
         </div>
