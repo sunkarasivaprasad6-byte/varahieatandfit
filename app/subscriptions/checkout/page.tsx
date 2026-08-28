@@ -4,10 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { DAYS, getPlan } from "@/lib/subscriptionData";
-import { createSubscriptionDraft } from "@/lib/subscriptionService";
 import { DELIVERY_SLOTS, getDeliverySlotAvailability, type DeliverySlot } from "@/lib/deliverySlotService";
 import { toast } from "react-hot-toast";
 import { ChevronLeft, ExternalLink, LocateFixed, MapPin, MessageSquare } from "lucide-react";
@@ -17,6 +14,7 @@ type DraftState = { name: string; phone: string; slot: DeliverySlot | ""; instru
 const DRAFT_KEY = "varahi-subscription-checkout";
 const UPI_VPA = "rajasekar.bukke@oksbi";
 const UPI_NAME = "Varahi Eat & Fit";
+const WHATSAPP_NUMBER = "919014863642";
 
 function proteinRange(actual: number) { return { min: Math.max(0, actual - 2), max: actual + 6 }; }
 
@@ -27,7 +25,6 @@ function SubscriptionCheckoutContent() {
   const plan = getPlan(params.get("plan") || "silver") as NonNullable<ReturnType<typeof getPlan>>;
   const [step, setStep] = useState(0);
   const [day, setDay] = useState<(typeof DAYS)[number]>("MON");
-  const [userId, setUserId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [slot, setSlot] = useState<DeliverySlot | "">("");
@@ -38,8 +35,8 @@ function SubscriptionCheckoutContent() {
   const [locationDetected, setLocationDetected] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
-  useEffect(() => onAuthStateChanged(auth, (u) => setUserId(u?.uid || null)), []);
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null") as DraftState | null;
@@ -71,6 +68,7 @@ function SubscriptionCheckoutContent() {
     }
     if (step === 1 && (protein < range.min || protein > range.max)) { toast.error(`Protein must be between ${range.min}g and ${range.max}g.`); return false; }
     if (step === 3 && address.trim().length < 10) { toast.error("Enter your delivery address or detect your location."); return false; }
+    if (step === 5 && !paymentConfirmed) { toast.error("Please confirm that you have completed the UPI payment."); return false; }
     return true;
   }
   async function continueStep() {
@@ -84,15 +82,22 @@ function SubscriptionCheckoutContent() {
     window.location.href = upiLink;
   }
   async function submitPayment() {
-    if (!userId) { saveDraft(5); const returnTo = `/subscriptions/checkout?plan=${encodeURIComponent(plan.id)}`; window.location.href = `/account?returnTo=${encodeURIComponent(returnTo)}`; return; }
+    if (!paymentConfirmed) { toast.error("Please confirm that you have completed the UPI payment."); return; }
     setLoading(true);
+    const whatsappWindow = window.open("about:blank", "_blank");
     try {
       const selected = slots.find((x) => x.slot === slot); if (!selected?.available) throw new Error("That delivery slot is now full. Please choose another slot.");
-      const subscriptionPayload = { userId, customerName: name.trim(), phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT" as const, startDate: "", endDate: "", deliverySlot: slot as DeliverySlot, deliveryTime: String(slot), address, proteinPerMeal: protein, caloriesPerMeal: meal.calories, instructions, skippedMeals: 0 };
-      const subscriptionId = await createSubscriptionDraft(subscriptionPayload);
+      const response = await fetch("/api/subscriptions/guest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), phone, address, location: address.startsWith("https://www.google.com/maps?q=") ? address : "", slot, protein, instructions, planId: plan.id, day }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Unable to submit your subscription.");
+      const subscriptionId = String(data.subscriptionId || "");
+      if (!subscriptionId) throw new Error("Subscription was not created. Please try again.");
+      const whatsappMessage = `🥗 *NEW VARAHI EAT & FIT SUBSCRIPTION*\n\n🆔 *Subscription ID*\n${subscriptionId}\n\n👤 *Customer*\n${name.trim()}\n\n📞 *Phone*\n${phone}\n\n🏠 *Address*\n${address}\n\n📋 *PLAN*\n${plan.name} Plan\n💰 ₹${plan.price}/week\n🕒 ${slot}\n\n🍽️ *MEAL*\n${meal.name}\n💪 ${protein}g protein / meal\n🔥 ${meal.calories} kcal / meal\n\n📝 *SPECIAL INSTRUCTIONS*\n${instructions || "None"}\n\n💳 *PAYMENT*\nCustomer says UPI payment is completed.\nAmount: ₹${plan.price}\n\n🟡 *ACTION REQUIRED*\nPlease check the payment and Confirm or Reject this subscription in the admin panel.\n\nThank you ❤️`;
+      const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`;
+      if (whatsappWindow && !whatsappWindow.closed) whatsappWindow.location.href = whatsappUrl; else window.open(whatsappUrl, "_blank");
       localStorage.removeItem(DRAFT_KEY);
       window.location.href = `/subscriptions/payment-verification?id=${encodeURIComponent(subscriptionId)}&plan=${encodeURIComponent(plan.id)}`;
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Unable to submit payment"); }
+    } catch (error) { if (whatsappWindow && !whatsappWindow.closed) whatsappWindow.close(); toast.error(error instanceof Error ? error.message : "Unable to submit payment"); }
     finally { setLoading(false); }
   }
 
@@ -111,8 +116,8 @@ function SubscriptionCheckoutContent() {
           {step === 2 && <><h1 className="mt-3 text-3xl font-bold">Any special instructions?</h1><div className="mt-8"><MessageSquare className="mb-3 h-5 w-5 text-[#E63946]" /><textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Less spicy, no onion, etc." className="min-h-40 w-full rounded-2xl border border-white/10 bg-black/25 p-5 text-white outline-none placeholder:text-white/25 focus:border-[#E63946]" /></div></>}
           {step === 3 && <><h1 className="mt-3 text-3xl font-bold">Where should we deliver?</h1><p className="mt-2 text-sm text-white/40">Enter your address manually or use your current location.</p><div className="mt-8"><div className="mb-3 flex items-center justify-between"><div className="flex items-center gap-2"><MapPin className="h-5 w-5 text-[#E63946]" /><span className="text-sm font-medium text-white/70">Delivery location</span></div>{locationDetected && <span className="text-xs text-green-400">Location detected</span>}</div><textarea value={address} onChange={(e) => { setAddress(e.target.value); setLocationDetected(false); }} placeholder="Enter your full delivery address..." className="min-h-36 w-full rounded-2xl border border-white/10 bg-black/25 p-5 text-white outline-none placeholder:text-white/25" />{isMap && <a href={address} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-[#E63946]">View location in Google Maps <ExternalLink className="h-3.5 w-3.5" /></a>}<button type="button" onClick={detectLocation} disabled={detectingLocation} className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#E63946]/40 bg-[#E63946]/10 px-5 py-4 text-sm font-bold text-[#E63946] disabled:opacity-50"><LocateFixed className="h-5 w-5" />{detectingLocation ? "Detecting..." : "Detect My Location"}</button></div></>}
           {step === 4 && <><h1 className="mt-3 text-3xl font-bold">Review your subscription</h1><div className="mt-8 space-y-4 text-sm text-white/60"><p><b className="text-white">Plan:</b> {plan.name} · ₹{plan.price}/week</p><p><b className="text-white">Delivery:</b> {slot}</p><p><b className="text-white">Nutrition:</b> {protein}g protein · {meal.calories} kcal per meal</p><p><b className="text-white">Address:</b> {isMap ? <a href={address} target="_blank" rel="noopener noreferrer" className="text-[#E63946]">Open Google Maps location</a> : address}</p><p><b className="text-white">Instructions:</b> {instructions || "None"}</p></div></>}
-          {step === 5 && <><h1 className="mt-3 text-3xl font-bold">Pay with UPI</h1><div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-6"><p className="text-sm text-white/60">Pay ₹{plan.price} to <b className="text-white">{UPI_VPA}</b></p><div className="mt-6 flex justify-center"><div className="rounded-2xl bg-white p-4"><QRCode value={upiLink} size={220} /></div></div><p className="mt-4 text-center text-sm font-semibold text-white">Scan this QR code with any UPI app</p><p className="mt-1 text-center text-xs text-white/40">PhonePe · Google Pay · Paytm · BHIM · Any UPI App</p><button type="button" onClick={openUPI} className="mt-6 w-full rounded-2xl bg-[#E63946] px-5 py-4 font-bold">Open UPI App</button></div></>}
-          <div className="mt-10 flex justify-between gap-3"><button type="button" disabled={step === 0 || loading} onClick={() => setStep(Math.max(0, step - 1))} className="rounded-full border border-white/10 px-6 py-3 text-sm disabled:opacity-20">Back</button><button type="button" disabled={loading || detectingLocation} onClick={continueStep} className="rounded-full bg-[#E63946] px-7 py-3 text-sm font-bold disabled:opacity-50">{loading ? "Submitting..." : step === 5 ? "Submit Payment" : "Continue"}</button></div>
+          {step === 5 && <><h1 className="mt-3 text-3xl font-bold">Pay with UPI</h1><div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-6"><p className="text-sm text-white/60">Pay ₹{plan.price} to <b className="text-white">{UPI_VPA}</b></p><div className="mt-6 flex justify-center"><div className="rounded-2xl bg-white p-4"><QRCode value={upiLink} size={220} /></div></div><p className="mt-4 text-center text-sm font-semibold text-white">Scan this QR code with any UPI app</p><p className="mt-1 text-center text-xs text-white/40">PhonePe · Google Pay · Paytm · BHIM · Any UPI App</p><button type="button" onClick={openUPI} className="mt-6 w-full rounded-2xl bg-[#E63946] px-5 py-4 font-bold">Open UPI App</button><label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm font-semibold text-white/80"><input type="checkbox" checked={paymentConfirmed} onChange={(e) => setPaymentConfirmed(e.target.checked)} className="h-5 w-5 accent-[#E63946]" />I've Completed Payment</label></div></>}
+          <div className="mt-10 flex justify-between gap-3"><button type="button" disabled={step === 0 || loading} onClick={() => setStep(Math.max(0, step - 1))} className="rounded-full border border-white/10 px-6 py-3 text-sm disabled:opacity-20">Back</button><button type="button" disabled={loading || detectingLocation || (step === 5 && !paymentConfirmed)} onClick={continueStep} className="rounded-full bg-[#E63946] px-7 py-3 text-sm font-bold disabled:opacity-50">{loading ? "Submitting..." : step === 5 ? "Submit Payment" : "Continue"}</button></div>
         </div>
       </section>
       <aside className="h-fit rounded-[28px] border border-white/10 bg-[#0D0B0B] p-6"><p className="text-xs font-bold uppercase tracking-[0.25em] text-[#E63946]">Summary</p><h2 className="mt-3 text-2xl font-bold">{plan.name} Plan</h2><p className="mt-1 text-sm text-white/40">7-day nutrition plan</p><div className="my-7 border-y border-white/10 py-5"><div className="flex justify-between text-sm"><span className="text-white/45">Weekly total</span><b>₹{plan.price}</b></div><div className="mt-3 flex justify-between text-sm"><span className="text-white/45">Delivery slot</span><span>{slot || "Not selected"}</span></div></div><p className="text-xs leading-5 text-white/35">After you complete the UPI payment, submit it for manual verification.</p></aside>
