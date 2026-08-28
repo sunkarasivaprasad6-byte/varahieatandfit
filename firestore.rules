@@ -10,7 +10,39 @@ service cloud.firestore {
     function ownsSubscriptionDocument() { return signedIn() && resource.data.userId == request.auth.uid; }
     function ownsNewSubscriptionDocument() { return signedIn() && request.resource.data.userId == request.auth.uid; }
     function ownsOrderDocument() { return signedIn() && resource.data.userId == request.auth.uid; }
-    function ownsNewOrderDocument() { return signedIn() && request.resource.data.userId == request.auth.uid; }
+
+    function validGuestOrder() {
+      return request.resource.data.keys().hasAll([
+        'orderId',
+        'name',
+        'phone',
+        'address',
+        'location',
+        'items',
+        'total',
+        'paymentMethod',
+        'paymentDone',
+        'paymentVerified',
+        'status',
+        'deliveryOtp',
+        'otpVerified',
+        'createdAt',
+        'updatedAt'
+      ])
+      && request.resource.data.orderId is string
+      && request.resource.data.name is string
+      && request.resource.data.phone is string
+      && request.resource.data.address is string
+      && request.resource.data.location is string
+      && request.resource.data.items is list
+      && request.resource.data.total is number
+      && request.resource.data.paymentMethod is string
+      && request.resource.data.paymentDone is bool
+      && request.resource.data.paymentVerified == false
+      && request.resource.data.status in ['NEW', 'PAYMENT_VERIFIED']
+      && request.resource.data.deliveryOtp is string
+      && request.resource.data.otpVerified == false;
+    }
 
     match /menu/{menuId} {
       allow read: if true;
@@ -91,15 +123,11 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow read: if admin() || ownsOrderDocument();
-      allow create: if ownsNewOrderDocument();
-      allow update: if admin() || (
-        ownsOrderDocument()
-        && request.resource.data.userId == resource.data.userId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'address', 'phone', 'name', 'instructions', 'updatedAt'
-        ])
-      );
+      // Customers do not need an account to place a menu order.
+      // They may create a validated order, but only admins can read or change orders.
+      allow read: if admin();
+      allow create: if validGuestOrder();
+      allow update: if admin();
       allow delete: if admin();
     }
 
