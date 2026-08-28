@@ -9,20 +9,14 @@ const CAPACITY = 50;
 const RESERVATION_MINUTES = 15;
 type DeliverySlot = (typeof DELIVERY_SLOTS)[number];
 type ReservationStatus = "ACTIVE" | "RELEASED" | "ACTIVATED" | "EXPIRED";
-
 type Counter = { activeCount?: number; reservedCount?: number; initialized?: boolean };
+type TimestampLike = { toMillis(): number };
 
 function isSlot(value: unknown): value is DeliverySlot {
   return typeof value === "string" && DELIVERY_SLOTS.includes(value as DeliverySlot);
 }
-
-function slotKey(slot: DeliverySlot) {
-  return slot.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
-}
-
-function counterRef(slot: DeliverySlot) {
-  return adminDb.collection("deliverySlotCounters").doc(slotKey(slot));
-}
+function slotKey(slot: DeliverySlot) { return slot.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase(); }
+function counterRef(slot: DeliverySlot) { return adminDb.collection("deliverySlotCounters").doc(slotKey(slot)); }
 
 async function requireUser(request: NextRequest) {
   const header = request.headers.get("authorization");
@@ -34,7 +28,7 @@ async function reconcileExpiredReservations() {
   const snap = await adminDb.collection("deliverySlotReservations").where("status", "==", "ACTIVE").get();
   const now = Date.now();
   for (const docSnap of snap.docs) {
-    const data = docSnap.data() as { slot?: DeliverySlot; expiresAt?: FirebaseFirestore.Timestamp };
+    const data = docSnap.data() as { slot?: DeliverySlot; expiresAt?: TimestampLike };
     if (!isSlot(data.slot) || !data.expiresAt || data.expiresAt.toMillis() > now) continue;
     await adminDb.runTransaction(async (tx) => {
       const latest = await tx.get(docSnap.ref);
@@ -85,7 +79,6 @@ async function reserve(uid: string, slot: DeliverySlot, subscriptionId: string) 
     tx.create(reservationRef, { subscriptionId, slot, status: "ACTIVE" as ReservationStatus, expiresAt, createdAt: FieldValue.serverTimestamp() });
     tx.update(counter, { reservedCount: reservedCount + 1, updatedAt: FieldValue.serverTimestamp() });
   });
-
   return { reservationId: reservationRef.id, expiresAt: expiresAt.toISOString() };
 }
 
@@ -116,7 +109,7 @@ async function activate(uid: string, reservationId?: string) {
   return adminDb.runTransaction(async (tx) => {
     const snap = await tx.get(reservationRef);
     if (!snap.exists) throw new Error("Delivery slot reservation not found");
-    const data = snap.data() as { subscriptionId?: string; slot?: DeliverySlot; status?: ReservationStatus; expiresAt?: FirebaseFirestore.Timestamp };
+    const data = snap.data() as { subscriptionId?: string; slot?: DeliverySlot; status?: ReservationStatus; expiresAt?: TimestampLike };
     if (!data.subscriptionId || !isSlot(data.slot)) throw new Error("Invalid reservation");
     const subRef = adminDb.collection("subscriptions").doc(data.subscriptionId);
     const subSnap = await tx.get(subRef);
@@ -160,13 +153,12 @@ export async function GET() {
     await reconcileExpiredReservations();
     for (const slot of DELIVERY_SLOTS) await ensureCounter(slot);
     const counters = await Promise.all(DELIVERY_SLOTS.map((slot) => counterRef(slot).get()));
-    const result = DELIVERY_SLOTS.map((slot, i) => {
+    return NextResponse.json(DELIVERY_SLOTS.map((slot, i) => {
       const c = (counters[i].data() || {}) as Counter;
       const active = Number(c.activeCount || 0);
       const pendingReservations = Number(c.reservedCount || 0);
       return { slot, count: active, pendingReservations, capacity: CAPACITY, available: active + pendingReservations < CAPACITY, remaining: Math.max(0, CAPACITY - active - pendingReservations) };
-    });
-    return NextResponse.json(result);
+    }));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to load delivery slots" }, { status: 500 });
   }
@@ -183,7 +175,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid delivery-slot request" }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Delivery-slot request failed";
-    const status = message === "Sign in required" ? 401 : 400;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json({ error: message }, { status: message === "Sign in required" ? 401 : 400 });
   }
 }
