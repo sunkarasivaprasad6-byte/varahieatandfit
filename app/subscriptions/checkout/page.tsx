@@ -108,7 +108,8 @@ function SubscriptionCheckoutContent() {
       const selected = slots.find((x) => x.slot === slot);
       if (!selected?.available) throw new Error("That delivery slot is now full. Please choose another slot.");
       const start = new Date(); const end = new Date(start); end.setDate(start.getDate() + 6);
-      await createSubscriptionDraft({ userId, customerName: name.trim(), phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: start.toISOString(), endDate: end.toISOString(), deliverySlot: slot, deliveryTime: slot, address, proteinPerMeal: protein, caloriesPerMeal: meal.calories, instructions, skippedMeals: 0 });
+      const subscriptionPayload = { userId, customerName: name.trim(), phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: start.toISOString(), endDate: end.toISOString(), deliverySlot: slot as DeliverySlot, deliveryTime: slot as DeliverySlot, address, proteinPerMeal: protein, caloriesPerMeal: meal.calories, instructions, skippedMeals: 0 };
+      await createSubscriptionDraft(subscriptionPayload);
       localStorage.removeItem(DRAFT_KEY);
       toast.success("Payment submitted for verification. We will confirm your subscription shortly.");
     } catch (error) {
