@@ -120,7 +120,7 @@ const diamondMeals: Record<string, SubscriptionMeal> = {
   mon: {
     name: "Veg Roll + Chicken Protein Salad + Juice + Boiled Egg",
     image:
-      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&auto=format&fit=crop&q=80",
+      "/images/first.jpg",
     calories: 450,
     protein: 54,
   },
