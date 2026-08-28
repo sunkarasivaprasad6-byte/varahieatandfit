@@ -94,8 +94,9 @@ function SubscriptionCheckoutContent() {
   }
 
   async function startPayment() {
+    const checkoutPlan = plan!;
     if (!userId) {
-      const returnTo = `/subscriptions/checkout?plan=${encodeURIComponent(plan.id)}`;
+      const returnTo = `/subscriptions/checkout?plan=${encodeURIComponent(checkoutPlan.id)}`;
       toast("Your checkout details are saved. Sign in to continue.");
       window.location.href = `/account?returnTo=${encodeURIComponent(returnTo)}`;
       return;
@@ -109,7 +110,6 @@ function SubscriptionCheckoutContent() {
       const customerEmail = auth.currentUser?.email || "";
       const customerPhone = auth.currentUser?.phoneNumber || "";
 
-      const checkoutPlan = plan;
       const subscriptionId = await createSubscriptionDraft({ userId, customerName, customerEmail, customerPhone, planId: checkoutPlan.id, planName: checkoutPlan.name, amount: checkoutPlan.price, status: "PENDING_PAYMENT", startDate: start.toISOString(), endDate: end.toISOString(), deliveryTime: formatTime(deliveryTime), address, proteinPerMeal: protein, caloriesPerMeal: calories, instructions, skippedMeals: 0, paymentStatus: "PENDING" });
 
       const res = await fetch("/api/cashfree/create-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: checkoutPlan.price, customerId: userId, customerName, customerPhone: customerPhone || "9999999999", customerEmail, subscriptionId }) });
