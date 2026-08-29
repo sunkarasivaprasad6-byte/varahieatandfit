@@ -170,7 +170,7 @@ export default function MenuSection() {
           </motion.div>
         </div>
 
-        {(activeCategory === "Tea" || activeCategory === "Soups") && (
+        {(activeCategory === "Herbal Tea" || activeCategory === "Tea" || activeCategory === "Soups") && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -178,12 +178,12 @@ export default function MenuSection() {
           >
             <h3 className="text-xl sm:text-2xl font-bold text-white mb-3">Benefits</h3>
             <p className="text-xs text-white/40 mb-5">
-              {activeCategory === "Tea"
+              {activeCategory === "Herbal Tea" || activeCategory === "Tea"
                 ? "Traditional/general wellness benefits associated with these teas and ingredients."
                 : "General wellness and ingredient-based benefits associated with these soups."}
             </p>
             <div className="flex flex-wrap gap-3">
-              {(activeCategory === "Tea" ? TEA_BENEFITS : SOUP_BENEFITS).map((benefit) => (
+              {(activeCategory === "Herbal Tea" || activeCategory === "Tea" ? TEA_BENEFITS : SOUP_BENEFITS).map((benefit) => (
                 <span
                   key={benefit}
                   className="rounded-full border border-green-500/20 bg-green-500/10 px-4 py-2 text-sm text-green-300"
