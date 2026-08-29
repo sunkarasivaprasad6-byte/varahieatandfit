@@ -24,7 +24,7 @@ function VerificationContent() {
             {plan && <p className="mt-2 text-sm text-white/45">Plan: {plan}</p>}
           </div>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link href="/account" className="rounded-full bg-[#E63946] px-7 py-3 text-sm font-bold">View My Subscription</Link>
+            <Link href="/my-subscription" className="rounded-full bg-[#E63946] px-7 py-3 text-sm font-bold">View My Subscription</Link>
             <Link href="/" className="rounded-full border border-white/10 px-7 py-3 text-sm font-semibold">Back to Home</Link>
           </div>
         </section>
