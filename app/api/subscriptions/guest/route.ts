@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { getPlan, DAYS } from "@/lib/subscriptionData";
 import { DELIVERY_SLOTS } from "@/lib/deliverySlotService";
 
@@ -39,10 +39,22 @@ export async function POST(request: NextRequest) {
     const maxProtein = meal.protein + 6;
     if (!Number.isFinite(protein) || protein < minProtein || protein > maxProtein) return NextResponse.json({ error: `Protein must be between ${minProtein}g and ${maxProtein}g.` }, { status: 400 });
 
-    const guestId = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    let userId = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    let guest = true;
+    const authorization = request.headers.get("authorization") || "";
+    if (authorization.startsWith("Bearer ")) {
+      try {
+        const decoded = await adminAuth.verifyIdToken(authorization.slice("Bearer ".length).trim());
+        userId = decoded.uid;
+        guest = false;
+      } catch {
+        // Invalid/missing auth should not prevent a customer from placing a guest subscription.
+      }
+    }
+
     const subscriptionRef = adminDb.collection("subscriptions").doc();
-    await subscriptionRef.set({ userId: guestId, guest: true, customerName: name, phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: "", endDate: "", deliverySlot: body.slot, deliveryTime: body.slot, address, location, proteinPerMeal: protein, caloriesPerMeal: meal.calories, instructions, skippedMeals: 0, paymentStatus: "PENDING", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-    return NextResponse.json({ subscriptionId: subscriptionRef.id, guestId });
+    await subscriptionRef.set({ userId, guest, customerName: name, phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: "", endDate: "", deliverySlot: body.slot, deliveryTime: body.slot, address, location, proteinPerMeal: protein, caloriesPerMeal: meal.calories, instructions, skippedMeals: 0, paymentStatus: "PENDING", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+    return NextResponse.json({ subscriptionId: subscriptionRef.id, guestId: guest ? userId : null, linkedToAccount: !guest });
   } catch (error) {
     console.error("Failed to create guest subscription:", error);
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to submit subscription" }, { status: 500 });
