@@ -18,7 +18,36 @@ export async function createSubscriptionDraft(data: Omit<Subscription, "id" | "c
 function isExpired(subscription: Subscription) { return Boolean(subscription.endDate) && new Date(subscription.endDate).getTime() < Date.now(); }
 export async function getActiveSubscriptions(userId: string) { const snap = await getDocs(query(collection(db, "subscriptions"), where("userId", "==", userId), where("status", "==", "ACTIVE"))); const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription); const expired = items.filter(isExpired); await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() }))); return items.filter((s) => !expired.some((e) => e.id === s.id)); }
 export async function getActiveSubscription(userId: string) { const subscriptions = await getActiveSubscriptions(userId); return subscriptions[0] || null; }
-export function subscribeToActiveSubscriptions(userId: string, callback: (value: Subscription[]) => void) { const q = query(collection(db, "subscriptions"), where("userId", "==", userId), where("status", "==", "ACTIVE")); return onSnapshot(q, async (snap) => { const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription); const expired = items.filter(isExpired); await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() }))); callback(items.filter((s) => !expired.some((e) => e.id === s.id))); }); }
+
+async function recoverSubscriptionsForCurrentAccount() {
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    const idToken = await user.getIdToken(true);
+    await fetch("/api/subscriptions/claim", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+  } catch (error) {
+    console.error("Failed to recover subscriptions for current account", error);
+  }
+}
+
+export function subscribeToActiveSubscriptions(userId: string, callback: (value: Subscription[]) => void) {
+  let recoveryAttempted = false;
+  const q = query(collection(db, "subscriptions"), where("userId", "==", userId), where("status", "==", "ACTIVE"));
+  return onSnapshot(q, async (snap) => {
+    const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription);
+    const expired = items.filter(isExpired);
+    await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() })));
+    callback(items.filter((s) => !expired.some((e) => e.id === s.id)));
+    if (items.length === 0 && !recoveryAttempted) {
+      recoveryAttempted = true;
+      await recoverSubscriptionsForCurrentAccount();
+    }
+  });
+}
 export function subscribeToActiveSubscription(userId: string, callback: (value: Subscription | null) => void) { return subscribeToActiveSubscriptions(userId, (subscriptions) => callback(subscriptions[0] || null)); }
 export async function activateSubscription(id: string, _payment?: { orderId?: string; paymentId?: string }) { const user = auth.currentUser; if (!user) throw new Error("Sign in required"); const ref = doc(db, "subscriptions", id); const initial = await getDoc(ref); if (!initial.exists() || initial.data().userId !== user.uid) throw new Error("Subscription not found"); const current = initial.data() as Subscription; if (current.status === "CANCELLED" || current.status === "COMPLETED") throw new Error("This subscription can no longer be activated"); if (current.status === "ACTIVE" && current.paymentStatus === "SUCCESS") return; for (let attempt = 0; attempt < 15; attempt += 1) { await new Promise((resolve) => setTimeout(resolve, 1000)); const snap = await getDoc(ref); if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found"); const latest = snap.data() as Subscription; if (latest.status === "ACTIVE" && latest.paymentStatus === "SUCCESS") return; if (latest.status === "CANCELLED" || latest.status === "COMPLETED") throw new Error("This subscription can no longer be activated"); } throw new Error("Payment is still being verified. Please check your subscription again in a moment."); }
 export async function markSubscriptionPaymentFailed(id: string) { const user = auth.currentUser; if (!user) throw new Error("Sign in required"); const ref = doc(db, "subscriptions", id); const snap = await getDoc(ref); if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found"); const data = snap.data() as Subscription; await releaseDeliverySlotReservation(data.slotReservationId); await updateDoc(ref, { status: "CANCELLED", paymentStatus: "FAILED", paymentFailedAt: serverTimestamp(), updatedAt: serverTimestamp() }); }
