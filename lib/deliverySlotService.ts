@@ -1,9 +1,10 @@
 import { auth } from "@/lib/firebase";
+import { DELIVERY_SLOT_LABELS, normalizeDeliverySlot } from "@/lib/deliverySlotRules";
 
-export const DELIVERY_SLOTS = ["7:00 AM – 9:00 AM", "12:00 PM – 2:00 PM", "7:00 PM – 9:00 PM"] as const;
+export const DELIVERY_SLOTS = DELIVERY_SLOT_LABELS;
 export const DELIVERY_SLOT_CAPACITY = 50;
 export const DELIVERY_RESERVATION_MINUTES = 15;
-export type DeliverySlot = (typeof DELIVERY_SLOTS)[number];
+export type DeliverySlot = string;
 
 type SlotAvailability = {
   slot: DeliverySlot;
@@ -35,10 +36,11 @@ async function request<T>(method: "GET" | "POST", body?: unknown): Promise<T> {
 }
 
 export async function reserveDeliverySlot(slot: DeliverySlot, subscriptionId: string) {
-  if (!DELIVERY_SLOTS.includes(slot)) throw new Error("Invalid delivery slot");
+  const canonicalSlot = normalizeDeliverySlot(slot);
+  if (!canonicalSlot || !DELIVERY_SLOTS.includes(canonicalSlot)) throw new Error("Invalid delivery slot");
   return request<{ reservationId: string; expiresAt: string }>("POST", {
     action: "reserve",
-    slot,
+    slot: canonicalSlot,
     subscriptionId,
   });
 }
@@ -55,8 +57,9 @@ export async function activateDeliverySlotReservation(reservationId?: string) {
 }
 
 export async function changeActiveDeliverySlot(subscriptionId: string, nextSlot: DeliverySlot) {
-  if (!DELIVERY_SLOTS.includes(nextSlot)) throw new Error("Invalid delivery slot");
-  await request("POST", { action: "change", subscriptionId, slot: nextSlot });
+  const canonicalSlot = normalizeDeliverySlot(nextSlot);
+  if (!canonicalSlot || !DELIVERY_SLOTS.includes(canonicalSlot)) throw new Error("Invalid delivery slot");
+  await request("POST", { action: "change", subscriptionId, slot: canonicalSlot });
 }
 
 export async function reconcileDeliverySlotCounters() {
