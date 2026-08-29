@@ -23,6 +23,17 @@ type MenuItemWithAvailability = MenuItem & {
   available?: boolean;
 };
 
+const MENU_BENEFITS = [
+  "Promotes Skin Glow",
+  "Natural Detox",
+  "Boosts Energy",
+  "Supports Immunity",
+  "Better for Metabolism & Gut Health",
+  "Weight Management",
+  "Rich in Antioxidants",
+  "Supports Hormonal Wellness",
+];
+
 export default function MenuSection() {
   const { addToCart } = useCart();
 
@@ -30,7 +41,6 @@ export default function MenuSection() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItemWithAvailability[]>([]);
 
-  // Customer-facing categories from the current Varahi menu.
   const categories = [
     "All",
     ...Array.from(
@@ -106,7 +116,7 @@ export default function MenuSection() {
       <div className="absolute top-1/2 right-0 -translate-y-1/2 w-[650px] h-[650px] bg-[#E63946]/5 rounded-full blur-[180px] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-6 relative z-10">
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10 mb-16">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10 mb-10">
           <div>
             <motion.h2
               initial={{ opacity: 0, y: 25 }}
@@ -150,6 +160,28 @@ export default function MenuSection() {
             ))}
           </motion.div>
         </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mb-14 rounded-3xl border border-white/10 bg-[#171717]/80 p-6 sm:p-7"
+        >
+          <h3 className="text-xl sm:text-2xl font-bold text-white mb-3">Benefits</h3>
+          <p className="text-xs text-white/40 mb-5">
+            Traditional/general wellness benefits associated with these foods and ingredients.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {MENU_BENEFITS.map((benefit) => (
+              <span
+                key={benefit}
+                className="rounded-full border border-green-500/20 bg-green-500/10 px-4 py-2 text-sm text-green-300"
+              >
+                {benefit}
+              </span>
+            ))}
+          </div>
+        </motion.div>
 
         <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           <AnimatePresence mode="popLayout">
@@ -215,16 +247,22 @@ export default function MenuSection() {
                     <h3 className="text-2xl font-bold text-white mb-2">{item.name}</h3>
                     <p className="text-white/50 text-sm mb-5 min-h-[40px]">{item.description}</p>
 
-                    <div className="flex gap-3 mb-6 flex-wrap">
-                      <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2">
-                        <Flame className="w-4 h-4 text-orange-400" />
-                        <span className="text-xs text-white">{item.calories} kcal</span>
+                    {(item.calories !== undefined || item.protein !== undefined) && (
+                      <div className="flex gap-3 mb-6 flex-wrap">
+                        {item.calories !== undefined && (
+                          <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2">
+                            <Flame className="w-4 h-4 text-orange-400" />
+                            <span className="text-xs text-white">{item.calories} kcal</span>
+                          </div>
+                        )}
+                        {item.protein !== undefined && (
+                          <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2">
+                            <Dumbbell className="w-4 h-4 text-blue-400" />
+                            <span className="text-xs text-white">{item.protein}</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2">
-                        <Dumbbell className="w-4 h-4 text-blue-400" />
-                        <span className="text-xs text-white">{item.protein}</span>
-                      </div>
-                    </div>
+                    )}
 
                     <div className="flex items-center justify-between border-t border-white/10 pt-5">
                       <div>
