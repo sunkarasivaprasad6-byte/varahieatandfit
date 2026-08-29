@@ -3,6 +3,7 @@ import {
   addDoc,
   getDocs,
   updateDoc,
+  setDoc,
   deleteDoc,
   doc,
 } from "firebase/firestore";
@@ -106,7 +107,20 @@ export async function addFood(item: Omit<MenuItem, "id">) {
 }
 
 export async function updateFood(id: string, data: Partial<MenuItem> & { available?: boolean }) {
-  return await updateDoc(doc(db, "menu", id), removeUndefinedFields(data as Record<string, unknown>));
+  const cleanData = removeUndefinedFields(data as Record<string, unknown>);
+
+  // These two protein shakes are fallback items when their Firestore documents
+  // do not exist yet. Create the document on first edit instead of calling
+  // updateDoc(), which only works when a document already exists.
+  const isProteinShakeFallback =
+    id === "protein-gold-standard-whey" ||
+    id === "protein-mb-biozyme-whey";
+
+  if (isProteinShakeFallback) {
+    return await setDoc(doc(db, "menu", id), cleanData, { merge: true });
+  }
+
+  return await updateDoc(doc(db, "menu", id), cleanData);
 }
 
 export async function deleteFood(id: string) {
