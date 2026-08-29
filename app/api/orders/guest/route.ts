@@ -27,6 +27,7 @@ type GuestOrder = {
   status?: string;
   deliveryOtp?: string;
   otpVerified?: boolean;
+  upiTransactionId?: string;
 };
 
 function orderDocumentId(orderId: string) {
@@ -36,7 +37,6 @@ function orderDocumentId(orderId: string) {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GuestOrder;
-
     const name = String(body.name || "").trim();
     const phone = String(body.phone || "").trim();
     const address = String(body.address || "").trim();
@@ -48,78 +48,40 @@ export async function POST(request: NextRequest) {
     const paymentVerified = Boolean(body.paymentVerified);
     const orderId = String(body.orderId || "").trim();
     const deliveryOtp = String(body.deliveryOtp || "").trim();
+    const upiTransactionId = String(body.upiTransactionId || "").trim();
+    const isCOD = paymentMethod === "COD";
 
-    if (name.length < 3) {
-      return NextResponse.json({ error: "Please enter your full name." }, { status: 400 });
-    }
-    if (!/^[6-9]\d{9}$/.test(phone)) {
-      return NextResponse.json({ error: "Please enter a valid 10-digit mobile number." }, { status: 400 });
-    }
-    if (address.length < 20) {
-      return NextResponse.json({ error: "Please enter your complete delivery address." }, { status: 400 });
-    }
-    if (items.length === 0) {
-      return NextResponse.json({ error: "Your cart is empty." }, { status: 400 });
-    }
-    if (!Number.isFinite(total) || total < 0) {
-      return NextResponse.json({ error: "Invalid order total." }, { status: 400 });
-    }
-    if (!paymentMethod) {
-      return NextResponse.json({ error: "Please select a payment method." }, { status: 400 });
-    }
-    if (!orderId) {
-      return NextResponse.json({ error: "Unable to create the order. Please try again." }, { status: 400 });
-    }
+    if (name.length < 3) return NextResponse.json({ error: "Please enter your full name." }, { status: 400 });
+    if (!/^[6-9]\d{9}$/.test(phone)) return NextResponse.json({ error: "Please enter a valid 10-digit mobile number." }, { status: 400 });
+    if (address.length < 20) return NextResponse.json({ error: "Please enter your complete delivery address." }, { status: 400 });
+    if (items.length === 0) return NextResponse.json({ error: "Your cart is empty." }, { status: 400 });
+    if (!Number.isFinite(total) || total < 0) return NextResponse.json({ error: "Invalid order total." }, { status: 400 });
+    if (!paymentMethod) return NextResponse.json({ error: "Please select a payment method." }, { status: 400 });
+    if (!isCOD && !/^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$/.test(upiTransactionId)) return NextResponse.json({ error: "Please enter a valid UPI Transaction ID / UTR." }, { status: 400 });
+    if (!orderId) return NextResponse.json({ error: "Unable to create the order. Please try again." }, { status: 400 });
 
     const statusSnap = await adminDb.collection("restaurantSettings").doc("status").get();
     const restaurantStatus = statusSnap.exists ? statusSnap.data()?.status : "available";
-    if (restaurantStatus !== "available") {
-      return NextResponse.json(
-        { error: "The restaurant is currently unavailable for normal menu orders. Subscriptions are still available." },
-        { status: 409 }
-      );
-    }
+    if (restaurantStatus !== "available") return NextResponse.json({ error: "The restaurant is currently unavailable for normal menu orders. Subscriptions are still available." }, { status: 409 });
 
-    // Use a deterministic document ID derived from the client order ID. This makes
-    // retries idempotent and prevents the same order from creating multiple docs.
     const orderRef = adminDb.collection("orders").doc(orderDocumentId(orderId));
     const existing = await orderRef.get();
-
     if (existing.exists) {
       const existingOrder = existing.data() || {};
-      if (existingOrder.orderId === orderId) {
-        return NextResponse.json({ orderId, documentId: orderRef.id, duplicate: true });
-      }
+      if (existingOrder.orderId === orderId) return NextResponse.json({ orderId, documentId: orderRef.id, duplicate: true });
       return NextResponse.json({ error: "Unable to create the order. Please try again." }, { status: 409 });
     }
 
     await orderRef.create({
-      orderId,
-      name,
-      phone,
-      address,
-      location,
-      items,
-      total,
-      paymentMethod,
-      paymentDone,
-      paymentVerified,
-      status: body.status || (paymentMethod === "COD" ? "NEW" : "PAYMENT_VERIFIED"),
-      deliveryOtp,
-      otpVerified: Boolean(body.otpVerified),
-      guest: true,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+      orderId, name, phone, address, location, items, total, paymentMethod, paymentDone, paymentVerified,
+      ...(isCOD ? {} : { upiTransactionId }),
+      status: body.status || (isCOD ? "NEW" : "PAYMENT_VERIFIED"),
+      deliveryOtp, otpVerified: Boolean(body.otpVerified), guest: true,
+      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
     });
-
     return NextResponse.json({ orderId, documentId: orderRef.id });
   } catch (error) {
-    // Firestore create() is intentionally used above so concurrent retries with
-    // the same orderId cannot both create separate order documents.
     console.error("Failed to create guest restaurant order:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to submit your order." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to submit your order." }, { status: 500 });
   }
 }
