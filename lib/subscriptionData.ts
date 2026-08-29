@@ -103,7 +103,7 @@ const goldenMeals: Record<string, SubscriptionMeal> = {
   },
   fri: {
     name: "Paneer Roll + Boiled Egg + Sprout Salad",
-    image: "/images/pes.jpg",
+    image: "/images/pesa.jpg",
     calories: 533,
     protein: 32,
   },
