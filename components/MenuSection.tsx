@@ -34,19 +34,14 @@ const TEA_BENEFITS = [
   "Supports Hormonal Wellness",
 ];
 
-const SOUP_BENEFITS: Record<string, string[]> = {
-  "Tomato Soup": ["Rich in tomato goodness", "Light and refreshing", "Contains antioxidant-rich ingredients"],
-  "Classic Corn Soup": ["Comforting and nourishing", "Contains naturally occurring fiber", "Warm and satisfying"],
-  "Carrot Soup": ["Rich in carrot goodness", "Naturally wholesome", "Light and comforting"],
-  "Classic Mushroom Soup": ["Savory and satisfying", "Contains nutrient-rich mushrooms", "Warm and comforting"],
-  "Broccoli Soup": ["Packed with broccoli goodness", "Naturally wholesome", "Light and comforting"],
-  "Mix Veg Corn Soup": ["Variety of vegetables in one bowl", "Naturally wholesome", "Warm and satisfying"],
-  "Broccoli Carrot Soup": ["Combines broccoli and carrot goodness", "Naturally wholesome", "Light and comforting"],
-  "Mushroom Cashew Soup": ["Creamy and satisfying", "Contains mushrooms and cashews", "Rich and comforting"],
-  "Mushroom Walnut Soup": ["Savory mushroom goodness", "Contains walnuts for added richness", "Warm and satisfying"],
-  "Mixed Veg Soup": ["Made with a variety of vegetables", "Naturally wholesome", "Light and comforting"],
-  "Chicken Soup": ["A warm, hearty chicken option", "Contains protein-rich chicken", "Comforting and satisfying"],
-};
+const SOUP_BENEFITS = [
+  "Warm & Comforting",
+  "Made with Wholesome Ingredients",
+  "Naturally Nourishing",
+  "Light & Satisfying",
+  "Rich in Vegetable Goodness",
+  "A Delicious Way to Enjoy Vegetables",
+];
 
 export default function MenuSection() {
   const { addToCart } = useCart();
@@ -175,7 +170,7 @@ export default function MenuSection() {
           </motion.div>
         </div>
 
-        {activeCategory === "Tea" && (
+        {(activeCategory === "Tea" || activeCategory === "Soups") && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -183,10 +178,12 @@ export default function MenuSection() {
           >
             <h3 className="text-xl sm:text-2xl font-bold text-white mb-3">Benefits</h3>
             <p className="text-xs text-white/40 mb-5">
-              Traditional/general wellness benefits associated with these teas and ingredients.
+              {activeCategory === "Tea"
+                ? "Traditional/general wellness benefits associated with these teas and ingredients."
+                : "General wellness and ingredient-based benefits associated with these soups."}
             </p>
             <div className="flex flex-wrap gap-3">
-              {TEA_BENEFITS.map((benefit) => (
+              {(activeCategory === "Tea" ? TEA_BENEFITS : SOUP_BENEFITS).map((benefit) => (
                 <span
                   key={benefit}
                   className="rounded-full border border-green-500/20 bg-green-500/10 px-4 py-2 text-sm text-green-300"
@@ -204,7 +201,6 @@ export default function MenuSection() {
               const favoriteId = item.id !== undefined && item.id !== null ? String(item.id) : "";
               const isFavorite = favoriteId !== "" && favorites.includes(favoriteId);
               const cartId = getCartId(item);
-              const soupBenefits = activeCategory === "Soups" ? SOUP_BENEFITS[item.name] : undefined;
 
               return (
                 <motion.div
@@ -262,22 +258,6 @@ export default function MenuSection() {
                   <div className="px-3 pb-2">
                     <h3 className="text-2xl font-bold text-white mb-2">{item.name}</h3>
                     <p className="text-white/50 text-sm mb-5 min-h-[40px]">{item.description}</p>
-
-                    {soupBenefits && (
-                      <div className="mb-6">
-                        <p className="text-sm font-semibold text-white mb-2">Benefits</p>
-                        <div className="flex flex-wrap gap-2">
-                          {soupBenefits.map((benefit) => (
-                            <span
-                              key={benefit}
-                              className="rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1.5 text-xs text-green-300"
-                            >
-                              {benefit}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
 
                     {!activeCategory.includes("Tea") && activeCategory !== "Soups" && (item.calories !== undefined || item.protein !== undefined) && (
                       <div className="flex gap-3 mb-6 flex-wrap">
