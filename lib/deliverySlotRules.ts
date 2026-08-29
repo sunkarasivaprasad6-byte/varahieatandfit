@@ -9,7 +9,7 @@ export const DELIVERY_SLOTS = core.DELIVERY_SLOTS as ReadonlyArray<{
 
 export type DeliverySlotId = (typeof DELIVERY_SLOTS)[number]["id"];
 
-export const SLOT_CHANGE_CUTOFF_MINUTES = 20;
+export const SLOT_CHANGE_CUTOFF_MINUTES = 30;
 
 export function getSlot(slotId: string | undefined) {
   return core.getSlot(slotId);
@@ -17,4 +17,8 @@ export function getSlot(slotId: string | undefined) {
 
 export function isSlotChangeLocked(slotId: string | undefined, now = new Date()) {
   return core.isSlotChangeLocked(slotId, now);
+}
+
+export function isSlotEligibleForNewSubscription(slotId: string | undefined, now = new Date(), minimumLeadMinutes = 30) {
+  return core.isSlotEligibleForNewSubscription(slotId, now, minimumLeadMinutes);
 }
