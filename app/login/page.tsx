@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
 
+function getSafeRedirect() {
+  if (typeof window === "undefined") return "/admin";
+  const value = new URLSearchParams(window.location.search).get("redirect");
+  return value && value.startsWith("/admin/") || value === "/admin" ? value : "/admin";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -32,7 +38,7 @@ export default function LoginPage() {
       // fresh ID token so Firestore Security Rules see admin == true now.
       await credential.user.getIdToken(true);
 
-      router.replace("/admin");
+      router.replace(getSafeRedirect());
       router.refresh();
     } catch (error) {
       alert(error instanceof Error && error.message.includes("Admin access")
