@@ -83,7 +83,7 @@ function CheckoutContent() {
   }
 
   const upiLink = upiPaymentReference
-    ? `upi://pay?pa=${encodeURIComponent("rajasekar.bukke@oksbi")}&pn=${encodeURIComponent("Varahi Eat & Fit")}&am=${encodeURIComponent(grandTotal.toFixed(2))}&cu=INR&tr=${encodeURIComponent(upiPaymentReference)}&tn=${encodeURIComponent(`Varahi Eat & Fit payment ${upiPaymentReference}`)}`
+    ? `upi://pay?pa=${encodeURIComponent("rajasekar.bukke@oksbi")}&pn=${encodeURIComponent("Varahi Eat & Fit")}&am=${encodeURIComponent(grandTotal.toFixed(2))}&cu=INR&tr=${encodeURIComponent(upiPaymentReference)}&tn=${encodeURIComponent(`Varahi Eat & Fit payment ${upiPaymentReference} | Owner mobile: +91 9704949192`)}`
     : "";
 
   return (
