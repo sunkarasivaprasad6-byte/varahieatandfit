@@ -21,7 +21,32 @@ export async function POST(request: NextRequest) {
     const subscriptionId = String(body.subscriptionId || "").trim();
     const phone = String(body.phone || "").trim();
 
-    if (!subscriptionId) return NextResponse.json({ error: "Subscription reference is missing." }, { status: 400 });
+    // Existing customers can recover subscriptions created under an older Firebase
+    // account with the same verified email. This fixes the case where one browser
+    // has the subscription but another browser is signed into a newer account.
+    if (!subscriptionId) {
+      const email = String(decoded.email || "").trim().toLowerCase();
+      if (!email) return NextResponse.json({ error: "Verified email is required to recover your subscription." }, { status: 400 });
+
+      const usersSnap = await adminDb.collection("users").where("email", "==", email).get();
+      const legacyUserIds = usersSnap.docs.map((item) => item.id).filter((id) => id !== decoded.uid);
+      if (legacyUserIds.length === 0) return NextResponse.json({ success: true, linked: 0 });
+
+      const linkedIds: string[] = [];
+      for (const legacyUserId of legacyUserIds) {
+        const subscriptionsSnap = await adminDb.collection("subscriptions").where("userId", "==", legacyUserId).where("status", "==", "ACTIVE").get();
+        for (const subscriptionDoc of subscriptionsSnap.docs) {
+          await subscriptionDoc.ref.update({ userId: decoded.uid, guest: false, updatedAt: FieldValue.serverTimestamp() });
+          linkedIds.push(subscriptionDoc.id);
+        }
+      }
+
+      if (linkedIds.length > 0) {
+        await adminDb.collection("users").doc(decoded.uid).set({ email, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      }
+      return NextResponse.json({ success: true, linked: linkedIds.length, subscriptionIds: linkedIds });
+    }
+
     if (!validPhone(phone)) return NextResponse.json({ error: "Enter the same 10-digit phone number used for the subscription." }, { status: 400 });
 
     const subscriptionRef = adminDb.collection("subscriptions").doc(subscriptionId);
