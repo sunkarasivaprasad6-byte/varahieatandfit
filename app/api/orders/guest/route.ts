@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     if (!paymentMethod) {
       return NextResponse.json({ error: "Please select a payment method." }, { status: 400 });
     }
-    if (!orderId || !deliveryOtp) {
+    if (!orderId) {
       return NextResponse.json({ error: "Unable to create the order. Please try again." }, { status: 400 });
     }
 
