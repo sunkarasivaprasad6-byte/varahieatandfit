@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-import { countActiveSubscriptionsBySlot, DELIVERY_SLOTS, normalizeDeliverySlot, isSlotChangeLocked } from "@/lib/deliverySlotRulesCore";
+import core from "@/lib/deliverySlotRulesCore";
 
 export const runtime = "nodejs";
 
+const { DELIVERY_SLOTS, countActiveSubscriptionsBySlot, normalizeDeliverySlot, isSlotChangeLocked } = core;
 const SLOT_LABELS = DELIVERY_SLOTS.map((slot) => slot.label);
 const CAPACITY = 50;
 const RESERVATION_MINUTES = 15;
@@ -12,17 +13,6 @@ type DeliverySlot = string;
 type ReservationStatus = "ACTIVE" | "RELEASED" | "ACTIVATED" | "EXPIRED";
 type Counter = { activeCount?: number; reservedCount?: number; initialized?: boolean };
 type TimestampLike = { toMillis(): number };
-
-type SubscriptionRecord = {
-  status?: string;
-  deliverySlot?: string;
-  deliveryTime?: string;
-  endDate?: string;
-};
-
-function isSlot(value: unknown): value is DeliverySlot {
-  return Boolean(normalizeDeliverySlot(typeof value === "string" ? value : undefined));
-}
 
 function canonicalSlot(value: unknown) {
   return normalizeDeliverySlot(typeof value === "string" ? value : undefined);
@@ -203,14 +193,7 @@ export async function GET() {
     return NextResponse.json(SLOT_LABELS.map((slot) => {
       const active = Number(activeCounts[slot] || 0);
       const pendingReservations = Number(pendingCounts[slot] || 0);
-      return {
-        slot,
-        count: active,
-        pendingReservations,
-        capacity: CAPACITY,
-        available: active + pendingReservations < CAPACITY,
-        remaining: Math.max(0, CAPACITY - active - pendingReservations),
-      };
+      return { slot, count: active, pendingReservations, capacity: CAPACITY, available: active + pendingReservations < CAPACITY, remaining: Math.max(0, CAPACITY - active - pendingReservations) };
     }));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to load delivery slots" }, { status: 500 });
