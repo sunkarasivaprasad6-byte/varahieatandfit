@@ -60,8 +60,8 @@ export default function PlaceOrderButton({
       toast.error("Please enter a valid 10-digit mobile number.");
       return;
     }
-    if (!addressValid) {
-      toast.error("Please enter your complete delivery address.");
+    if (!addressValid && !location) {
+      toast.error("Please enter your complete delivery address or detect your location.");
       return;
     }
 

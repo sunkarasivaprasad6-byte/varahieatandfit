@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as GuestOrder;
     const name = String(body.name || "").trim();
     const phone = String(body.phone || "").trim();
-    const address = String(body.address || "").trim();
+    const address = String(body.address || body.location || "").trim();
     const location = String(body.location || "").trim();
     const items = Array.isArray(body.items) ? body.items : [];
     const total = Number(body.total);

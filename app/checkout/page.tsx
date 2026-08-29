@@ -41,7 +41,7 @@ function CheckoutContent() {
 
   const phoneValid = /^[6-9]\d{9}$/.test(phone);
   const nameValid = name.trim().length >= 3;
-  const addressValid = address.trim().length >= 20;
+  const addressValid = address.trim().length >= 10 || location.trim().length > 0;
 
   function applyCoupon() {
     if (coupon.toUpperCase() === "hello123") {
@@ -61,7 +61,9 @@ function CheckoutContent() {
     setLoadingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setLocation(`https://maps.google.com/?q=${position.coords.latitude},${position.coords.longitude}`);
+        const detected = `https://maps.google.com/?q=${position.coords.latitude},${position.coords.longitude}`;
+        setLocation(detected);
+        setAddress(detected);
         setLoadingLocation(false);
         toast.success("Location Captured");
       },
