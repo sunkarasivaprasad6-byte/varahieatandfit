@@ -61,10 +61,10 @@ const diamondMeals: Record<string, SubscriptionMeal> = {
 const babyVipMeals: Record<string, SubscriptionMeal> = {
   mon: { name: "Fruit Salad + Dry Fruit Nut Salad + ABC Juice + Veg Roll + Boiled Egg + Sprout Salad", image: "/images/fsd.jpg", calories: 343, protein: 23 },
   tue: { name: "Veg Salad + Dry Fruit Nut Salad + Cucumber Juice + Egg Roll + Boiled Egg + Sprout Salad", image: "public/images/baby-vip-tuesday.jpg", calories: 600, protein: 37 },
-  wed: { name: "Corn Salad + Dry Fruit Nut Salad + Guava Juice + Chicken Roll + Boiled Egg + Sprout Salad", image: NO_SUBSCRIPTION_IMAGE, calories: 598, protein: 45 },
-  thu: { name: "Egg Salad + Dry Fruit Nut Salad + Curry Leaves Juice + Chicken + Egg Roll + Boiled Egg + Sprout Salad", image: NO_SUBSCRIPTION_IMAGE, calories: 835, protein: 68 },
-  fri: { name: "Chicken Protein Salad + Dry Fruit Nut Salad + Green Juice + Paneer Roll + Boiled Egg + Sprout Salad", image: NO_SUBSCRIPTION_IMAGE, calories: 753, protein: 69 },
-  sat: { name: "Paneer Salad + Dry Fruit Nut Salad + Amla Juice + Veg Roll + Boiled Egg + Sprout Salad", image: NO_SUBSCRIPTION_IMAGE, calories: 528, protein: 35 },
+  wed: { name: "Corn Salad + Dry Fruit Nut Salad + Guava Juice + Chicken Roll + Boiled Egg + Sprout Salad", image: "public/images/baby-vip-wednesday.jpg", calories: 598, protein: 45 },
+  thu: { name: "Egg Salad + Dry Fruit Nut Salad + Curry Leaves Juice + Chicken + Egg Roll + Boiled Egg + Sprout Salad", image: "public/images/baby-vip-thursday.jpg", calories: 835, protein: 68 },
+  fri: { name: "Chicken Protein Salad + Dry Fruit Nut Salad + Green Juice + Paneer Roll + Boiled Egg + Sprout Salad", image: "public/images/baby-vip-friday.jpg", calories: 753, protein: 69 },
+  sat: { name: "Paneer Salad + Dry Fruit Nut Salad + Amla Juice + Veg Roll + Boiled Egg + Sprout Salad", image: "public/images/baby-vip-saturday.jpg", calories: 528, protein: 35 },
 };
 
 const vipMeals: Record<string, SubscriptionMeal> = {
