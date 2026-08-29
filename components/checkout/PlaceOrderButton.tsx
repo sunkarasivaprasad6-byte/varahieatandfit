@@ -52,7 +52,6 @@ export default function PlaceOrderButton({
   setPlacingOrder,
 }: Props) {
   const [orderGenerated, setOrderGenerated] = useState(false);
-  const [deliveryOtp, setDeliveryOtp] = useState("");
 
   const isCOD = paymentMethod === "COD";
   const isCashfree = paymentMethod === "CASHFREE";
@@ -122,8 +121,6 @@ export default function PlaceOrderButton({
     ======================================== */
 
     const orderId = `VEF-${Date.now().toString().slice(-8)}`;
-    const generatedOtp = String(Math.floor(1000 + Math.random() * 9000));
-    setDeliveryOtp(generatedOtp);
 
     /* ========================================
        5. PREPARE ITEMS
@@ -185,7 +182,6 @@ export default function PlaceOrderButton({
         paymentVerified: false,
 
         status: restaurantStatus,
-        deliveryOtp: generatedOtp,
         otpVerified: false,
       });
     } catch (error) {
@@ -331,7 +327,7 @@ Thank you for ordering from *Varahi Eat & Fit* ❤️`;
 
       {/* ========================================
           PAYMENT SUBMITTED SUCCESS
-      ======================================== */}
+      ======================================== */
 
       {orderGenerated && !isCOD && (
         <div className="mb-5 rounded-2xl border border-green-500/30 bg-green-500/10 p-5">
@@ -351,8 +347,6 @@ Thank you for ordering from *Varahi Eat & Fit* ❤️`;
                 Opening WhatsApp with your order details...
               </p>
 
-              <p className="mt-3 text-white">Delivery OTP: <b className="text-xl tracking-[0.3em] text-[#E63946]">{deliveryOtp}</b></p>
-
             </div>
 
           </div>
@@ -362,7 +356,7 @@ Thank you for ordering from *Varahi Eat & Fit* ❤️`;
 
       {/* ========================================
           SENDING STATUS
-      ======================================== */}
+      ======================================== */
 
       {placingOrder && !isCOD && (
         <div className="mb-5 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5">
@@ -382,7 +376,7 @@ Thank you for ordering from *Varahi Eat & Fit* ❤️`;
 
       {/* ========================================
           COD STATUS
-      ======================================== */}
+      ======================================== */
 
       {isCOD && (
         <div className="mb-5 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5">
@@ -417,7 +411,7 @@ Thank you for ordering from *Varahi Eat & Fit* ❤️`;
           UPI does NOT need a button anymore.
           Pressing "I've Completed Payment" in the
           payment section automatically submits it.
-      ======================================== */}
+      ======================================== */
 
       {isCOD && !orderGenerated && (
         <button
@@ -462,7 +456,7 @@ Thank you for ordering from *Varahi Eat & Fit* ❤️`;
 
       {/* ========================================
           COD SUCCESS
-      ======================================== */}
+      ======================================== */
 
       {isCOD && orderGenerated && (
         <div className="mb-5 rounded-2xl border border-green-500/30 bg-green-500/10 p-5">
@@ -481,8 +475,6 @@ Thank you for ordering from *Varahi Eat & Fit* ❤️`;
                 Opening WhatsApp with your order details...
               </p>
 
-              <p className="mt-3 text-white">Delivery OTP: <b className="text-xl tracking-[0.3em] text-[#E63946]">{deliveryOtp}</b></p>
-
             </div>
 
           </div>
@@ -492,7 +484,7 @@ Thank you for ordering from *Varahi Eat & Fit* ❤️`;
 
       {/* ========================================
           SECURITY MESSAGE
-      ======================================== */}
+      ======================================== */
 
       <p className="text-center text-white/35 text-xs mt-4 leading-5">
 
