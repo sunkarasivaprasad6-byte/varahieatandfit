@@ -1,10 +1,11 @@
 import core from "./deliverySlotRulesCore";
 
-export const DELIVERY_SLOTS = core.DELIVERY_SLOTS as readonly [
-  { id: "morning"; label: "7:00 AM – 9:00 AM"; startHour: 7; startMinute: 0 },
-  { id: "afternoon"; label: "12:00 PM – 2:00 PM"; startHour: 12; startMinute: 0 },
-  { id: "evening"; label: "7:00 PM – 9:00 PM"; startHour: 19; startMinute: 0 },
-];
+export const DELIVERY_SLOTS = core.DELIVERY_SLOTS as ReadonlyArray<{
+  id: "morning" | "afternoon" | "evening";
+  label: string;
+  startHour: number;
+  startMinute: number;
+}>;
 
 export type DeliverySlotId = (typeof DELIVERY_SLOTS)[number]["id"];
 
