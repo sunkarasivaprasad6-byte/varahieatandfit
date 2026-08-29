@@ -1,0 +1,76 @@
+name: One-time auth flow fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch checkout account flow
+        shell: python
+        run: |
+          from pathlib import Path
+
+          checkout = Path("app/subscriptions/checkout/page.tsx")
+          text = checkout.read_text()
+          start = text.index(" async function submitPayment()")
+          end = text.index("\n const isMap=", start)
+          replacement = ''' async function submitPayment(){\
+          if(!validate())return;\
+          const currentUser=auth.currentUser;\
+          if(!currentUser){\
+            saveDraft(5);\
+            window.location.href=`/account?signup=1&returnTo=${encodeURIComponent(`/subscriptions/checkout?plan=${plan.id}`)}`;\
+            return;\
+          }\
+          setLoading(true);\
+          try{\
+            const selected=slots.find(x=>x.slot===regularSlot);\
+            if(!selected?.available)throw new Error("That delivery slot is now full. Please choose another slot.");\
+            const idToken=await currentUser.getIdToken(true);\
+            const response=await fetch("/api/subscriptions/guest",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${idToken}`},body:JSON.stringify({name:name.trim(),phone,address,location:address.startsWith("https://www.google.com/maps?q=")?address:"",slot:regularSlot,regularSlot,firstDeliverySlotOverride:firstDeliverySlotOverride||"",firstDeliveryOverrideDate:firstDeliverySlotOverride&&isToday(startDate)?startDate:"",protein:selectedProtein,mealCustomizations,instructions,planId:plan.id,day,startDate:startDate||dateString(),upiTransactionId:upiTransactionId.trim()})});\
+            const data=await response.json().catch(()=>({}));\
+            if(!response.ok)throw new Error(data?.error||"Unable to submit your subscription.");\
+            const subscriptionId=String(data.subscriptionId||"");\
+            if(!subscriptionId)throw new Error("Subscription was not created. Please try again.");\
+            localStorage.removeItem(DRAFT_KEY);\
+            window.location.href=`/subscriptions/payment-verification?id=${encodeURIComponent(subscriptionId)}&plan=${encodeURIComponent(plan.id)}`;\
+          }catch(error){toast.error(error instanceof Error?error.message:"Unable to submit payment");}\
+          finally{setLoading(false);}\
+        }'''
+          checkout.write_text(text[:start] + replacement + text[end:])
+
+          account = Path("app/account/page.tsx")
+          text = account.read_text()
+          old = '    const value = params.get("returnTo");\n    const pendingId = params.get("subscriptionId") || localStorage.getItem("varahi-pending-subscription-id") || "";'
+          new = '    const value = params.get("returnTo");\n    const signupRequested = params.get("signup") === "1";\n    if (signupRequested) setMode("signup");\n    const pendingId = params.get("subscriptionId") || localStorage.getItem("varahi-pending-subscription-id") || "";'
+          if old not in text:
+              raise SystemExit("account marker not found")
+          account.write_text(text.replace(old, new, 1))
+
+          verification = Path("app/subscriptions/payment-verification/page.tsx")
+          text = verification.read_text()
+          old = '<Link href="/account" className="rounded-full bg-[#E63946] px-7 py-3 text-sm font-bold">View My Subscription</Link>'
+          new = '<Link href="/my-subscription" className="rounded-full bg-[#E63946] px-7 py-3 text-sm font-bold">View My Subscription</Link>'
+          if old not in text:
+              raise SystemExit("verification marker not found")
+          verification.write_text(text.replace(old, new, 1))
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/subscriptions/checkout/page.tsx app/account/page.tsx app/subscriptions/payment-verification/page.tsx
+          if git diff --cached --quiet; then
+            echo "No patch needed"
+            exit 0
+          fi
+          git commit -m "fix: require account before subscription submission"
+          git push
