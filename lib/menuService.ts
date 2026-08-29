@@ -31,22 +31,22 @@ const nutritionByName: Record<
   string,
   { calories: number; protein: string; category?: string }
 > = {
-  "Sprout Salad": { calories: 113, protein: "6g" },
-  "Lean Chicken Salad": { calories: 185, protein: "32g" },
-  "Veg Salad": { calories: 115, protein: "8g" },
-  "Corn Salad": { calories: 95, protein: "7g" },
-  "Paneer Salad": { calories: 185, protein: "12g" },
-  "Egg Salad": { calories: 260, protein: "23g" },
-  "Chicken Protein Salad": { calories: 220, protein: "37g" },
-  "Veg Roll": { calories: 160, protein: "11g" },
-  "Egg Roll": { calories: 302, protein: "17g" },
-  "Chicken Roll": { calories: 320, protein: "26g" },
-  "Chicken + Egg Roll": { calories: 392, protein: "33g" },
-  "Boiled Egg": { calories: 70, protein: "6g" },
+  "sprout salad": { calories: 113, protein: "6g" },
+  "lean chicken salad": { calories: 185, protein: "32g" },
+  "veg salad": { calories: 115, protein: "8g" },
+  "corn salad": { calories: 95, protein: "7g" },
+  "paneer salad": { calories: 185, protein: "12g" },
+  "egg salad": { calories: 260, protein: "23g" },
+  "chicken protein salad": { calories: 220, protein: "37g" },
+  "veg roll": { calories: 160, protein: "11g" },
+  "egg roll": { calories: 302, protein: "17g" },
+  "chicken roll": { calories: 320, protein: "26g" },
+  "chicken + egg roll": { calories: 392, protein: "33g" },
+  "boiled egg": { calories: 70, protein: "6g" },
 };
 
 function normalizeMenuItem(item: MenuItem): MenuItem {
-  const nutrition = nutritionByName[item.name];
+  const nutrition = nutritionByName[item.name.trim().toLowerCase()];
   const category = item.category === "Protein Shakes" ? "Protein Shakes" : item.category;
 
   return {
