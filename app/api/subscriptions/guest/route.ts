@@ -19,7 +19,7 @@ function isValidUpiTransactionId(value: unknown): value is string {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as { name?: string; phone?: string; address?: string; location?: string; slot?: string; protein?: number; instructions?: string; planId?: string; day?: string; upiTransactionId?: string; startDate?: string; mealCustomizations?: Record<string, { protein: number }> };
+    const body = await request.json() as { name?: string; phone?: string; address?: string; location?: string; slot?: string; regularSlot?: string; firstDeliverySlotOverride?: string; firstDeliveryOverrideDate?: string; protein?: number; instructions?: string; planId?: string; day?: string; upiTransactionId?: string; startDate?: string; mealCustomizations?: Record<string, { protein: number }> };
     const name = String(body.name || "").trim();
     const phone = String(body.phone || "").trim();
     const address = String(body.address || "").trim();
@@ -27,13 +27,19 @@ export async function POST(request: NextRequest) {
     const instructions = String(body.instructions || "").trim();
     const upiTransactionId = String(body.upiTransactionId || "").trim();
     const startDate = String(body.startDate || "").trim();
+    const regularSlot = String(body.regularSlot || body.slot || "").trim();
+    const firstDeliverySlotOverride = String(body.firstDeliverySlotOverride || "").trim();
+    const firstDeliveryOverrideDate = String(body.firstDeliveryOverrideDate || "").trim();
     const mealCustomizations = body.mealCustomizations && typeof body.mealCustomizations === "object" ? body.mealCustomizations : {};
     const plan = getPlan(String(body.planId || ""));
 
     if (name.length < 3) return NextResponse.json({ error: "Enter your full name." }, { status: 400 });
     if (!/^[6-9]\d{9}$/.test(phone)) return NextResponse.json({ error: "Enter a valid 10-digit phone number." }, { status: 400 });
     if (address.length < 10) return NextResponse.json({ error: "Enter your delivery address or detect your location." }, { status: 400 });
-    if (!isDeliverySlot(body.slot)) return NextResponse.json({ error: "Please select a delivery slot." }, { status: 400 });
+    if (!isDeliverySlot(regularSlot)) return NextResponse.json({ error: "Please select a delivery slot." }, { status: 400 });
+    if (firstDeliverySlotOverride && !isDeliverySlot(firstDeliverySlotOverride)) return NextResponse.json({ error: "Invalid first delivery slot." }, { status: 400 });
+    if (firstDeliverySlotOverride && !/^\d{4}-\d{2}-\d{2}$/.test(firstDeliveryOverrideDate)) return NextResponse.json({ error: "Invalid first delivery date." }, { status: 400 });
+    if (firstDeliverySlotOverride && firstDeliveryOverrideDate !== startDate) return NextResponse.json({ error: "First delivery override must match the subscription start date." }, { status: 400 });
     if (!plan) return NextResponse.json({ error: "Invalid subscription plan." }, { status: 400 });
     if (!isDay(body.day)) return NextResponse.json({ error: "Invalid meal day." }, { status: 400 });
     if (!isValidUpiTransactionId(upiTransactionId)) return NextResponse.json({ error: "Please enter a valid UPI Transaction ID / UTR." }, { status: 400 });
@@ -44,7 +50,12 @@ export async function POST(request: NextRequest) {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     if (selectedDate < today) return NextResponse.json({ error: "Subscription start date cannot be in the past." }, { status: 400 });
     const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    if (startDate === todayString && !isSlotEligibleForNewSubscription(String(body.slot), new Date(), 30)) return NextResponse.json({ error: "That slot is no longer available for a new subscription today. Please choose another available slot or start tomorrow." }, { status: 400 });
+    if (startDate === todayString) {
+      const overrideIsValid = Boolean(firstDeliverySlotOverride) && firstDeliveryOverrideDate === todayString && isSlotEligibleForNewSubscription(firstDeliverySlotOverride, new Date(), 30);
+      const regularIsValid = isSlotEligibleForNewSubscription(regularSlot, new Date(), 30);
+      if (!regularIsValid && !overrideIsValid) return NextResponse.json({ error: "That slot is no longer available for a new subscription today. Please choose another available slot or start tomorrow." }, { status: 400 });
+      if (overrideIsValid && firstDeliverySlotOverride === regularSlot) return NextResponse.json({ error: "Choose a different first delivery slot." }, { status: 400 });
+    }
 
     const meal = plan.meals[body.day.toLowerCase()];
     if (!meal) return NextResponse.json({ error: "Invalid meal selection." }, { status: 400 });
@@ -61,7 +72,8 @@ export async function POST(request: NextRequest) {
     }
 
     const subscriptionRef = adminDb.collection("subscriptions").doc();
-    await subscriptionRef.set({ userId, guest, customerName: name, phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: selectedDate.toISOString(), endDate: "", deliverySlot: body.slot, deliveryTime: body.slot, address, location, proteinPerMeal: protein, caloriesPerMeal: meal.calories, mealCustomizations, instructions, upiTransactionId, skippedMeals: 0, paymentStatus: "PENDING", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+    const deliverySlotOverrides = firstDeliverySlotOverride && firstDeliveryOverrideDate ? { [firstDeliveryOverrideDate]: firstDeliverySlotOverride } : {};
+    await subscriptionRef.set({ userId, guest, customerName: name, phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: selectedDate.toISOString(), endDate: "", deliverySlot: regularSlot, deliveryTime: regularSlot, regularDeliverySlot: regularSlot, deliverySlotOverrides, address, location, proteinPerMeal: protein, caloriesPerMeal: meal.calories, mealCustomizations, instructions, upiTransactionId, skippedMeals: 0, paymentStatus: "PENDING", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     return NextResponse.json({ subscriptionId: subscriptionRef.id, guestId: guest ? userId : null, linkedToAccount: !guest });
   } catch (error) {
     console.error("Failed to create guest subscription:", error);
