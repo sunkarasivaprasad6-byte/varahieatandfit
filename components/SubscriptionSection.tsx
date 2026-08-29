@@ -5,11 +5,11 @@ import Link from "next/link";
 import { ArrowRight, CalendarDays, Check, SlidersHorizontal, Truck, Utensils } from "lucide-react";
 
 const plans = [
+  { name: "VIP KIT", slug: "vip-kit", subtitle: "Premium weekly meals for your fitness goals", price: "₹2,499", mealImage: "/images/subscriptions/vip-kit.png", showImage: true, badge: "vip-gold", features: ["6 Premium Meals Per Week", "High Protein & Premium Meals", "Customizable Protein", "One Delivery Per Day", "Priority Support"] },
+  { name: "BABY VIP KIT", slug: "baby-vip-kit", subtitle: "Balanced weekly meals for your fitness goals", price: "₹1,499", mealImage: "/images/subscriptions/baby-vip-kit.png", showImage: true, badge: "vip-green", features: ["6 Meals Per Week", "High Protein & Balanced Meals", "Customizable Protein", "One Delivery Per Day", "Priority Support"] },
   { name: "SILVER", slug: "silver", subtitle: "Perfect start for a healthier you", price: "₹700", mealImage: "/images/subscriptions/silver-meal.png", showImage: true, badge: "silver", features: ["6 Meals Per Week", "High Protein Options", "Customizable Protein", "One Delivery Per Day", "Skip & Reschedule Meals"] },
   { name: "GOLDEN", slug: "golden", subtitle: "Best balance of taste & nutrition", price: "₹1,100", mealImage: "/images/subscriptions/golden-meal.png", showImage: true, badge: "gold", popular: true, features: ["6 Meals Per Week", "High Protein & Clean Meals", "Customizable Protein", "One Delivery Per Day", "Priority Support"] },
   { name: "DIAMOND", slug: "diamond", subtitle: "Ultimate nutrition experience", price: "₹1,600", mealImage: "/images/subscriptions/diamond-meal.png", showImage: true, badge: "diamond", features: ["6 Premium Meals Per Week", "High Protein & Gourmet Meals", "Customizable Protein", "One Delivery Per Day", "Priority Support"] },
-  { name: "BABY VIP KIT", slug: "baby-vip-kit", subtitle: "Balanced weekly meals for your fitness goals", price: "₹1,499", mealImage: "", showImage: false, badge: "vip-green", features: ["6 Meals Per Week", "High Protein & Balanced Meals", "Customizable Protein", "One Delivery Per Day", "Priority Support"] },
-  { name: "VIP KIT", slug: "vip-kit", subtitle: "Premium weekly meals for your fitness goals", price: "₹2,499", mealImage: "", showImage: false, badge: "vip-gold", features: ["6 Premium Meals Per Week", "High Protein & Premium Meals", "Customizable Protein", "One Delivery Per Day", "Priority Support"] },
 ];
 
 function PlanBadge({ type }: { type: string }) {
