@@ -1,5 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
+import { normalizeDeliverySlot } from "@/lib/deliverySlotRules";
+import { getFirstDeliveryDate, getSubscriptionEndDate } from "@/lib/subscriptionScheduling";
 
 const DELIVERY_SLOT_CAPACITY = 50;
 
@@ -57,7 +59,7 @@ export async function activateSubscriptionFromCashfree(
     }
 
     const reservationId = subscription.slotReservationId as string | undefined;
-    const deliverySlot = subscription.deliverySlot as string | undefined;
+    const deliverySlot = normalizeDeliverySlot(subscription.deliverySlot as string | undefined);
 
     if (!reservationId || !deliverySlot) {
       throw new Error("Subscription delivery slot reservation is missing");
@@ -81,18 +83,9 @@ export async function activateSubscriptionFromCashfree(
       ? String(reservationSnap.data()?.status || "")
       : "";
 
-    // A valid active reservation moves from reserved -> active.
-    // If the short reservation window expired before Cashfree confirmed payment,
-    // still allow activation when the slot has capacity. This prevents a paid
-    // customer from being left without a subscription merely because the webhook
-    // arrived after the temporary checkout reservation expired.
     const reservationIsActive = reservationStatus === "ACTIVE";
     const reservationAlreadyActivated = reservationStatus === "ACTIVATED";
 
-    // The current subscription already owns one reserved place when the
-    // reservation is ACTIVE, so only activeCount itself can block activation.
-    // For an expired/released reservation, the reserved count has already been
-    // returned to the pool, so activeCount is also the relevant capacity check.
     if (!reservationAlreadyActivated && activeCount >= DELIVERY_SLOT_CAPACITY) {
       throw new Error(`The ${deliverySlot} delivery slot is full`);
     }
@@ -115,6 +108,9 @@ export async function activateSubscriptionFromCashfree(
     }
 
     tx.update(subscriptionRef, {
+      deliverySlot: deliverySlot,
+      deliveryTime: deliverySlot,
+      regularDeliverySlot: deliverySlot,
       status: "ACTIVE",
       paymentStatus: "SUCCESS",
       paymentOrderId: payment.orderId,
@@ -132,5 +128,83 @@ export async function activateSubscriptionFromCashfree(
     });
 
     return { activated: true, duplicate: false };
+  });
+}
+
+/**
+ * Confirms a subscription after an owner has manually verified the UPI payment.
+ * This keeps the delivery-slot counter and reservation state in the same
+ * transaction as the ACTIVE status change.
+ */
+export async function confirmSubscriptionFromAdmin(subscriptionId: string) {
+  const subscriptionRef = adminDb.collection("subscriptions").doc(subscriptionId);
+  return adminDb.runTransaction(async (tx) => {
+    const subscriptionSnap = await tx.get(subscriptionRef);
+    if (!subscriptionSnap.exists) throw new Error("Subscription not found");
+
+    const subscription = subscriptionSnap.data() || {};
+    if (subscription.status === "ACTIVE") return { confirmed: false, alreadyActive: true };
+    if (subscription.status === "CANCELLED" || subscription.status === "COMPLETED") {
+      throw new Error(`Subscription is ${String(subscription.status).toLowerCase()}`);
+    }
+
+    const deliverySlot = normalizeDeliverySlot(subscription.deliverySlot as string | undefined);
+    if (!deliverySlot) throw new Error("Subscription delivery slot is invalid");
+
+    const confirmationTime = new Date();
+    const firstDeliveryDate = getFirstDeliveryDate(confirmationTime, deliverySlot);
+    const endDate = getSubscriptionEndDate(firstDeliveryDate);
+    const reservationId = subscription.slotReservationId as string | undefined;
+    const reservationRef = reservationId
+      ? adminDb.collection("deliverySlotReservations").doc(reservationId)
+      : null;
+    const counterRef = adminDb.collection("deliverySlotCounters").doc(slotKey(deliverySlot));
+    const [reservationSnap, counterSnap] = await Promise.all([
+      reservationRef ? tx.get(reservationRef) : Promise.resolve(null),
+      tx.get(counterRef),
+    ]);
+
+    if (!counterSnap.exists) throw new Error("Delivery slot counter is missing");
+
+    const counter = counterSnap.data() || {};
+    const activeCount = Number(counter.activeCount || 0);
+    const reservedCount = Number(counter.reservedCount || 0);
+    const reservationStatus = reservationSnap?.exists
+      ? String(reservationSnap.data()?.status || "")
+      : "";
+    const reservationIsActive = reservationStatus === "ACTIVE";
+    const reservationAlreadyActivated = reservationStatus === "ACTIVATED";
+
+    if (!reservationAlreadyActivated && activeCount >= DELIVERY_SLOT_CAPACITY) {
+      throw new Error(`The ${deliverySlot} delivery slot is full`);
+    }
+
+    if (!reservationAlreadyActivated) {
+      tx.update(counterRef, {
+        activeCount: activeCount + 1,
+        ...(reservationIsActive ? { reservedCount: Math.max(0, reservedCount - 1) } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      if (reservationSnap?.exists) {
+        tx.update(reservationSnap.ref, {
+          status: "ACTIVATED" as const,
+          activatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    tx.update(subscriptionRef, {
+      deliverySlot,
+      deliveryTime: deliverySlot,
+      regularDeliverySlot: deliverySlot,
+      status: "ACTIVE",
+      paymentStatus: "SUCCESS",
+      paymentVerifiedAt: FieldValue.serverTimestamp(),
+      startDate: firstDeliveryDate.toISOString(),
+      endDate: endDate.toISOString(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return { confirmed: true, alreadyActive: false };
   });
 }
