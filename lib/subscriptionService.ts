@@ -1,6 +1,7 @@
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { releaseDeliverySlotReservation, reserveDeliverySlot, type DeliverySlot } from "@/lib/deliverySlotService";
+import { getFirstDeliveryDate, getSubscriptionEndDate } from "@/lib/subscriptionScheduling";
 
 export type SkippedMealRecord = { id: string; skippedAt: string; expiresAt: string; scheduledFor?: string; scheduledTime?: string; status: "AVAILABLE" | "SCHEDULED" | "USED" | "EXPIRED" };
 export type Subscription = { id?: string; userId: string; customerName: string; phone: string; planId: string; planName: string; amount: number; status: "PENDING_PAYMENT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED"; startDate: string; endDate: string; deliverySlot: DeliverySlot; deliveryTime: string; address: string; proteinPerMeal: number; caloriesPerMeal: number; instructions: string; skippedMeals: number; skippedMealRecords?: SkippedMealRecord[]; paymentOrderId?: string; paymentId?: string; paymentStatus?: "PENDING" | "SUCCESS" | "FAILED"; paymentVerifiedAt?: unknown; paymentFailedAt?: unknown; slotReservationId?: string; slotReservationExpiresAt?: string; createdAt?: unknown; updatedAt?: unknown };
@@ -9,9 +10,6 @@ export async function createSubscriptionDraft(data: Omit<Subscription, "id" | "c
   if (!data.deliverySlot) throw new Error("Please select a delivery slot");
   if (!data.customerName.trim()) throw new Error("Customer name is required");
   if (!/^[6-9]\d{9}$/.test(data.phone)) throw new Error("Enter a valid 10-digit phone number");
-  // Every new subscription must explicitly start in the payment-pending state.
-  // This matches the production Firestore rule and prevents a browser from
-  // creating a subscription that looks paid before Cashfree verifies it.
   const ref = await addDoc(collection(db, "subscriptions"), { ...data, paymentStatus: data.paymentStatus || "PENDING", createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   const reservation = await reserveDeliverySlot(data.deliverySlot, ref.id);
   await updateDoc(ref, { slotReservationId: reservation.reservationId, slotReservationExpiresAt: reservation.expiresAt, updatedAt: serverTimestamp() });
@@ -57,8 +55,6 @@ export async function activateSubscription(id: string, _payment?: { orderId?: st
   if (current.status === "CANCELLED" || current.status === "COMPLETED") throw new Error("This subscription can no longer be activated");
   if (current.status === "ACTIVE" && current.paymentStatus === "SUCCESS") return;
 
-  // Cashfree webhook performs the trusted state transition. Wait briefly for
-  // that server update instead of writing payment SUCCESS from the browser.
   for (let attempt = 0; attempt < 15; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     const snap = await getDoc(ref);
@@ -108,6 +104,21 @@ function dedupeSkippedMealRecords(records: SkippedMealRecord[]) {
 
 export async function updateSubscription(id: string, data: Partial<Subscription>) {
   const nextData: Partial<Subscription> = { ...data };
+
+  // Owner confirmation is the authoritative point for the first delivery.
+  // Centralize this calculation so every admin confirmation path stores the
+  // same start/end dates, even if a caller only supplies ACTIVE + SUCCESS.
+  if (data.status === "ACTIVE" && data.paymentStatus === "SUCCESS") {
+    const currentSnap = await getDoc(doc(db, "subscriptions", id));
+    if (!currentSnap.exists()) throw new Error("Subscription not found");
+    const current = currentSnap.data() as Subscription;
+    const confirmationTime = new Date();
+    const firstDelivery = getFirstDeliveryDate(confirmationTime, current.deliverySlot || current.deliveryTime || "");
+    const endDate = getSubscriptionEndDate(firstDelivery);
+    nextData.startDate = firstDelivery.toISOString();
+    nextData.endDate = endDate.toISOString();
+  }
+
   if (data.skippedMealRecords) {
     nextData.skippedMealRecords = dedupeSkippedMealRecords(data.skippedMealRecords);
     nextData.skippedMeals = nextData.skippedMealRecords.filter((record) => record.status === "AVAILABLE").length;
