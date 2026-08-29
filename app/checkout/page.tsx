@@ -35,9 +35,8 @@ function CheckoutContent() {
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [location, setLocation] = useState("");
 
-  const deliveryCharge = 40;
-  const gst = Math.round(totalPrice * 0.05);
-  const grandTotal = totalPrice + deliveryCharge + gst - discount;
+  const deliveryCharge = 30;
+  const grandTotal = totalPrice + deliveryCharge - discount;
 
   const phoneValid = /^[6-9]\d{9}$/.test(phone);
   const nameValid = name.trim().length >= 3;
@@ -158,7 +157,7 @@ function CheckoutContent() {
                 cart={cart}
                 totalPrice={totalPrice}
                 deliveryCharge={deliveryCharge}
-                gst={gst}
+                gst={0}
                 discount={discount}
                 grandTotal={grandTotal}
                 coupon={coupon}
