@@ -14,7 +14,6 @@ type DraftState = { name: string; phone: string; slot: DeliverySlot | ""; instru
 const DRAFT_KEY = "varahi-subscription-checkout";
 const UPI_VPA = "rajasekar.bukke@oksbi";
 const UPI_NAME = "Varahi Eat & Fit";
-const WHATSAPP_NUMBER = "919014863642";
 
 function proteinRange(actual: number) { return { min: Math.max(0, actual - 2), max: actual + 6 }; }
 
@@ -84,7 +83,6 @@ function SubscriptionCheckoutContent() {
   async function submitPayment() {
     if (!paymentConfirmed) { toast.error("Please confirm that you have completed the UPI payment."); return; }
     setLoading(true);
-    const whatsappWindow = window.open("about:blank", "_blank");
     try {
       const selected = slots.find((x) => x.slot === slot); if (!selected?.available) throw new Error("That delivery slot is now full. Please choose another slot.");
       const response = await fetch("/api/subscriptions/guest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), phone, address, location: address.startsWith("https://www.google.com/maps?q=") ? address : "", slot, protein, instructions, planId: plan.id, day }) });
@@ -92,12 +90,9 @@ function SubscriptionCheckoutContent() {
       if (!response.ok) throw new Error(data?.error || "Unable to submit your subscription.");
       const subscriptionId = String(data.subscriptionId || "");
       if (!subscriptionId) throw new Error("Subscription was not created. Please try again.");
-      const whatsappMessage = `🥗 *NEW VARAHI EAT & FIT SUBSCRIPTION*\n\n🆔 *Subscription ID*\n${subscriptionId}\n\n👤 *Customer*\n${name.trim()}\n\n📞 *Phone*\n${phone}\n\n🏠 *Address*\n${address}\n\n📋 *PLAN*\n${plan.name} Plan\n💰 ₹${plan.price}/week\n🕒 ${slot}\n\n🍽️ *MEAL*\n${meal.name}\n💪 ${protein}g protein / meal\n🔥 ${meal.calories} kcal / meal\n\n📝 *SPECIAL INSTRUCTIONS*\n${instructions || "None"}\n\n💳 *PAYMENT*\nCustomer says UPI payment is completed.\nAmount: ₹${plan.price}\n\n🟡 *ACTION REQUIRED*\nPlease check the payment and Confirm or Reject this subscription in the admin panel.\n\nThank you ❤️`;
-      const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`;
-      if (whatsappWindow && !whatsappWindow.closed) whatsappWindow.location.href = whatsappUrl; else window.open(whatsappUrl, "_blank");
       localStorage.removeItem(DRAFT_KEY);
       window.location.href = `/subscriptions/payment-verification?id=${encodeURIComponent(subscriptionId)}&plan=${encodeURIComponent(plan.id)}`;
-    } catch (error) { if (whatsappWindow && !whatsappWindow.closed) whatsappWindow.close(); toast.error(error instanceof Error ? error.message : "Unable to submit payment"); }
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Unable to submit payment"); }
     finally { setLoading(false); }
   }
 
