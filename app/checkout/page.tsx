@@ -44,7 +44,7 @@ function CheckoutContent() {
   const addressValid = address.trim().length >= 20;
 
   function applyCoupon() {
-    if (coupon.toUpperCase() === "WELCOME100") {
+    if (coupon.toUpperCase() === "hello123") {
       setDiscount(100);
       toast.success("Coupon Applied Successfully");
     } else {
