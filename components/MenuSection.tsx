@@ -23,7 +23,7 @@ type MenuItemWithAvailability = MenuItem & {
   available?: boolean;
 };
 
-const MENU_BENEFITS = [
+const TEA_BENEFITS = [
   "Promotes Skin Glow",
   "Natural Detox",
   "Boosts Energy",
@@ -161,27 +161,28 @@ export default function MenuSection() {
           </motion.div>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="mb-14 rounded-3xl border border-white/10 bg-[#171717]/80 p-6 sm:p-7"
-        >
-          <h3 className="text-xl sm:text-2xl font-bold text-white mb-3">Benefits</h3>
-          <p className="text-xs text-white/40 mb-5">
-            Traditional/general wellness benefits associated with these foods and ingredients.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {MENU_BENEFITS.map((benefit) => (
-              <span
-                key={benefit}
-                className="rounded-full border border-green-500/20 bg-green-500/10 px-4 py-2 text-sm text-green-300"
-              >
-                {benefit}
-              </span>
-            ))}
-          </div>
-        </motion.div>
+        {activeCategory === "Tea" && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-14 rounded-3xl border border-white/10 bg-[#171717]/80 p-6 sm:p-7"
+          >
+            <h3 className="text-xl sm:text-2xl font-bold text-white mb-3">Benefits</h3>
+            <p className="text-xs text-white/40 mb-5">
+              Traditional/general wellness benefits associated with these teas and ingredients.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {TEA_BENEFITS.map((benefit) => (
+                <span
+                  key={benefit}
+                  className="rounded-full border border-green-500/20 bg-green-500/10 px-4 py-2 text-sm text-green-300"
+                >
+                  {benefit}
+                </span>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           <AnimatePresence mode="popLayout">
