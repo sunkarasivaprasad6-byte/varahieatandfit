@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { ChevronRight } from "lucide-react";
@@ -31,6 +31,7 @@ function CheckoutContent() {
   const [paymentMethod, setPaymentMethod] = useState("COD");
   const [paymentDone, setPaymentDone] = useState(false);
   const [upiTransactionId, setUpiTransactionId] = useState("");
+  const [upiPaymentReference, setUpiPaymentReference] = useState("");
   const [placingOrder, setPlacingOrder] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [location, setLocation] = useState("");
@@ -42,6 +43,13 @@ function CheckoutContent() {
   const phoneValid = /^[6-9]\d{9}$/.test(phone);
   const nameValid = name.trim().length >= 3;
   const addressValid = address.trim().length >= 10 || location.trim().length > 0;
+
+  useEffect(() => {
+    // Create one stable numeric reference for this checkout/payment attempt.
+    // Repeatedly opening the UPI app must reuse the same reference.
+    const reference = `${Date.now()}${Math.floor(Math.random() * 1000000).toString().padStart(6, "0")}`;
+    setUpiPaymentReference(reference);
+  }, []);
 
   function applyCoupon() {
     if (coupon.toUpperCase() === "hello123") {
@@ -74,8 +82,9 @@ function CheckoutContent() {
     );
   }
 
-  const upiLink =
-    `upi://pay?pa=${encodeURIComponent("rajasekar.bukke@oksbi")}&pn=${encodeURIComponent("Varahi Eat & Fit")}&am=${encodeURIComponent(grandTotal.toFixed(2))}&cu=INR`;
+  const upiLink = upiPaymentReference
+    ? `upi://pay?pa=${encodeURIComponent("rajasekar.bukke@oksbi")}&pn=${encodeURIComponent("Varahi Eat & Fit")}&am=${encodeURIComponent(grandTotal.toFixed(2))}&cu=INR&tr=${encodeURIComponent(upiPaymentReference)}&tn=${encodeURIComponent(`Varahi Eat & Fit payment ${upiPaymentReference}`)}`
+    : "";
 
   return (
     <>
