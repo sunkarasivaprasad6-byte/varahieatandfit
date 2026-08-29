@@ -39,7 +39,6 @@ export default function OrderSummary({
   cart,
   totalPrice,
   deliveryCharge,
-  gst,
   discount,
   grandTotal,
   coupon,
@@ -76,12 +75,7 @@ export default function OrderSummary({
               className="bg-[#202020] rounded-3xl p-5 hover:border-[#E63946] border border-transparent transition"
             >
 
-              {/* MOBILE: stack image and details
-                  DESKTOP: keep original horizontal layout */}
-
               <div className="flex flex-col sm:flex-row gap-5">
-
-                {/* Image */}
 
                 <div className="relative w-full h-56 sm:w-32 sm:h-32 rounded-3xl overflow-hidden flex-shrink-0">
 
@@ -104,8 +98,6 @@ export default function OrderSummary({
 
                 </div>
 
-                {/* Details */}
-
                 <div className="flex-1 min-w-0">
 
                   <h3 className="text-2xl font-bold text-white">
@@ -120,20 +112,14 @@ export default function OrderSummary({
                     Healthy • Fresh • Protein Rich
                   </p>
 
-                  {/* QUANTITY + ITEM TOTAL */}
-
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-5 mt-8">
-
-                    {/* Quantity */}
 
                     <div className="flex items-center justify-start gap-5">
 
                       <div className="flex items-center gap-4">
 
                         <button
-                          onClick={() =>
-                            decreaseQuantity(item.id)
-                          }
+                          onClick={() => decreaseQuantity(item.id)}
                           className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex-shrink-0"
                         >
                           <Minus className="mx-auto" />
@@ -144,9 +130,7 @@ export default function OrderSummary({
                         </span>
 
                         <button
-                          onClick={() =>
-                            increaseQuantity(item.id)
-                          }
+                          onClick={() => increaseQuantity(item.id)}
                           className="w-11 h-11 rounded-full bg-[#E63946] flex-shrink-0"
                         >
                           <Plus className="mx-auto text-white" />
@@ -155,8 +139,6 @@ export default function OrderSummary({
                       </div>
 
                     </div>
-
-                    {/* Item Total */}
 
                     <div className="sm:text-right">
 
@@ -206,16 +188,11 @@ export default function OrderSummary({
 
             </div>
 
-            {/* MOBILE: vertical
-                DESKTOP: horizontal */}
-
             <div className="flex flex-col sm:flex-row gap-3">
 
               <input
                 value={coupon}
-                onChange={(e) =>
-                  setCoupon(e.target.value)
-                }
+                onChange={(e) => setCoupon(e.target.value)}
                 placeholder="WELCOME100"
                 className="w-full sm:flex-1 h-14 rounded-2xl bg-[#111] border border-white/10 px-5 text-white outline-none focus:border-[#E63946]"
               />
@@ -288,11 +265,6 @@ export default function OrderSummary({
               <div className="flex justify-between text-white/70">
                 <span>Delivery Charges</span>
                 <span>₹{deliveryCharge}</span>
-              </div>
-
-              <div className="flex justify-between text-white/70">
-                <span>GST (5%)</span>
-                <span>₹{gst}</span>
               </div>
 
               <div className="flex justify-between text-green-400 font-semibold">
