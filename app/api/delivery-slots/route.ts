@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { isSlotChangeLocked } from "@/lib/deliverySlotRules";
 
 export const runtime = "nodejs";
 
@@ -136,9 +137,8 @@ async function changeSlot(uid: string, subscriptionId: string, nextSlot: Deliver
     if (sub.status !== "ACTIVE") throw new Error("Only active subscriptions can change delivery slots");
     const currentSlot = sub.deliverySlot;
     if (!isSlot(currentSlot) || currentSlot === nextSlot) return;
+    if (isSlotChangeLocked(nextSlot)) throw new Error("The selected new delivery slot is locked for changes. Please choose another slot.");
 
-    // A customer is allowed to change away from a slot that has already passed.
-    // The cutoff applies to the NEW slot being selected, not to the old slot.
     const nextRef = counterRef(nextSlot);
     const currentRef = counterRef(currentSlot);
     const [nextSnap, currentSnap] = await Promise.all([tx.get(nextRef), tx.get(currentRef)]);
@@ -147,7 +147,7 @@ async function changeSlot(uid: string, subscriptionId: string, nextSlot: Deliver
     if (Number(next.activeCount || 0) + Number(next.reservedCount || 0) >= CAPACITY) throw new Error(`The ${nextSlot} delivery slot is full. Please choose another slot.`);
     tx.set(nextRef, { ...next, activeCount: Number(next.activeCount || 0) + 1, initialized: true, updatedAt: FieldValue.serverTimestamp() });
     tx.set(currentRef, { ...current, activeCount: Math.max(0, Number(current.activeCount || 0) - 1), initialized: true, updatedAt: FieldValue.serverTimestamp() });
-    tx.update(subRef, { deliverySlot: nextSlot, deliveryTime: nextSlot, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(subRef, { deliverySlot: nextSlot, deliveryTime: nextSlot, regularDeliverySlot: nextSlot, updatedAt: FieldValue.serverTimestamp() });
   });
 }
 
