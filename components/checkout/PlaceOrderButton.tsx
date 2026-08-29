@@ -24,6 +24,8 @@ interface Props {
   setPlacingOrder: (value: boolean) => void;
 }
 
+const validTransactionId = (value: string) => /^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$/.test(value);
+
 export default function PlaceOrderButton({
   cart,
   name,
@@ -63,14 +65,13 @@ export default function PlaceOrderButton({
       return;
     }
 
-    // Online orders cannot be submitted without a valid UPI transaction ID.
     if (!isCOD) {
       const transactionId = upiTransactionId.trim();
       if (!transactionId) {
         toast.error("Please enter your UPI Transaction ID");
         return;
       }
-      if (!/^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$/.test(transactionId)) {
+      if (!validTransactionId(transactionId)) {
         toast.error("Please enter a valid UPI Transaction ID");
         return;
       }
@@ -86,10 +87,7 @@ export default function PlaceOrderButton({
     setPlacingOrder(true);
 
     const orderId = `VEF-${Date.now().toString().slice(-8)}`;
-    const items = cart
-      .map((item) => `• ${item.name} × ${item.quantity} = ₹${item.price * item.quantity}`)
-      .join("\n");
-
+    const items = cart.map((item) => `• ${item.name} × ${item.quantity} = ₹${item.price * item.quantity}`).join("\n");
     const orderItems = cart.map((item) => ({
       id: item.id,
       name: item.name,
@@ -97,13 +95,9 @@ export default function PlaceOrderButton({
       quantity: item.quantity,
       image: item.image,
     }));
-
-    const paymentText = isCOD
-      ? "Cash on Delivery"
-      : isCashfree
-        ? "Cashfree Online Payment"
-        : "Online Payment";
+    const paymentText = isCOD ? "Cash on Delivery" : isCashfree ? "Cashfree Online Payment" : "Online Payment";
     const restaurantStatus = isCOD ? "NEW" : "PAYMENT_VERIFIED";
+    const transactionId = upiTransactionId.trim();
 
     try {
       await createRestaurantOrder({
@@ -119,7 +113,7 @@ export default function PlaceOrderButton({
         paymentVerified: false,
         status: restaurantStatus,
         otpVerified: false,
-        ...(isCOD ? {} : { upiTransactionId: upiTransactionId.trim() }),
+        ...(isCOD ? {} : { upiTransactionId: transactionId }),
       });
     } catch (error) {
       console.error("Failed to create restaurant order:", error);
@@ -162,20 +156,16 @@ ${items}
 💳 *PAYMENT METHOD*
 ${paymentText}
 
-${isCOD ? "" : `🔖 *UPI TRANSACTION ID*\n${upiTransactionId.trim()}\n`}
+${isCOD ? "" : `🔖 *UPI TRANSACTION ID*\n${transactionId}\n`}
 ━━━━━━━━━━━━━━━━━━━━
 
-${isCOD
-  ? "🟡 COD ORDER — PAYMENT TO BE COLLECTED ON DELIVERY"
-  : "🟢 PAYMENT SUBMITTED — PLEASE VERIFY THE UPI TRANSACTION"}
+${isCOD ? "🟡 COD ORDER — PAYMENT TO BE COLLECTED ON DELIVERY" : "🟢 PAYMENT SUBMITTED — PLEASE VERIFY THE UPI TRANSACTION"}
 
 ━━━━━━━━━━━━━━━━━━━━
 
 ⚠️ *Restaurant Action*
 
-${isCOD
-  ? "Confirm COD order and prepare the meal."
-  : "Verify the UPI transaction. If payment is received, confirm the order. If not, contact the customer."}
+${isCOD ? "Confirm COD order and prepare the meal." : "Verify the UPI transaction. If payment is received, confirm the order. If not, contact the customer."}
 
 Thank you for ordering from *Varahi Eat & Fit* ❤️`;
 
@@ -189,53 +179,29 @@ Thank you for ordering from *Varahi Eat & Fit* ❤️`;
   };
 
   useEffect(() => {
-    // I Have Paid sets paymentDone only after a valid transaction ID is entered.
     if (!isCOD && paymentDone && !orderGenerated && !placingOrder && !submissionStarted.current) {
       handlePlaceOrder();
     }
-  }, [paymentDone, isCOD, orderGenerated, placingOrder, upiTransactionId]);
+  }, [paymentDone, isCOD, orderGenerated, placingOrder, nameValid, phoneValid, addressValid, upiTransactionId, grandTotal]);
 
   return (
     <div className="w-full">
       {orderGenerated && !isCOD && (
-        <div className="mb-5 rounded-2xl border border-green-500/30 bg-green-500/10 p-5">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="w-6 h-6 text-green-400 shrink-0 mt-0.5" />
-            <div>
-              <h3 className="text-green-400 font-bold text-lg">Payment submitted for verification.</h3>
-              <p className="text-white/60 text-sm mt-2 leading-6">Your payment has been submitted. Opening WhatsApp with your order details...</p>
-            </div>
-          </div>
-        </div>
+        <div className="mb-5 rounded-2xl border border-green-500/30 bg-green-500/10 p-5"><div className="flex items-start gap-3"><CheckCircle2 className="w-6 h-6 text-green-400 shrink-0 mt-0.5" /><div><h3 className="text-green-400 font-bold text-lg">Payment submitted for verification.</h3><p className="text-white/60 text-sm mt-2 leading-6">Your payment has been submitted. Opening WhatsApp with your order details...</p></div></div></div>
       )}
-
       {placingOrder && !isCOD && (
-        <div className="mb-5 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5">
-          <div className="flex items-center justify-center gap-3"><Loader2 className="w-5 h-5 text-blue-400 animate-spin" /><p className="text-blue-300 font-semibold">Submitting payment for verification...</p></div>
-        </div>
+        <div className="mb-5 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5"><div className="flex items-center justify-center gap-3"><Loader2 className="w-5 h-5 text-blue-400 animate-spin" /><p className="text-blue-300 font-semibold">Submitting payment for verification...</p></div></div>
       )}
-
       {isCOD && (
-        <div className="mb-5 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5">
-          <div className="flex items-start gap-3"><span className="text-xl">💵</span><div><h3 className="text-blue-400 font-bold">Cash on Delivery</h3><p className="text-white/60 text-sm mt-1 leading-6">Payment will be collected when your order is delivered.</p></div></div>
-        </div>
+        <div className="mb-5 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5"><div className="flex items-start gap-3"><span className="text-xl">💵</span><div><h3 className="text-blue-400 font-bold">Cash on Delivery</h3><p className="text-white/60 text-sm mt-1 leading-6">Payment will be collected when your order is delivered.</p></div></div></div>
       )}
-
       {isCOD && !orderGenerated && (
-        <button type="button" onClick={handlePlaceOrder} disabled={placingOrder} className="w-full bg-[#E63946] hover:bg-red-600 disabled:bg-[#7f242c] disabled:cursor-not-allowed rounded-2xl py-4 text-lg font-bold text-white transition-all duration-300 hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center gap-3">
-          {placingOrder ? <><Loader2 className="w-5 h-5 animate-spin" />Sending Order...</> : <><MessageCircle className="w-5 h-5" />Place COD Order</>}
-        </button>
+        <button type="button" onClick={handlePlaceOrder} disabled={placingOrder} className="w-full bg-[#E63946] hover:bg-red-600 disabled:bg-[#7f242c] disabled:cursor-not-allowed rounded-2xl py-4 text-lg font-bold text-white transition-all duration-300 hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center gap-3">{placingOrder ? <><Loader2 className="w-5 h-5 animate-spin" />Sending Order...</> : <><MessageCircle className="w-5 h-5" />Place COD Order</>}</button>
       )}
-
       {isCOD && orderGenerated && (
-        <div className="mb-5 rounded-2xl border border-green-500/30 bg-green-500/10 p-5">
-          <div className="flex items-start gap-3"><CheckCircle2 className="w-6 h-6 text-green-400 shrink-0" /><div><h3 className="text-green-400 font-bold">Order submitted successfully.</h3><p className="text-white/60 text-sm mt-1 leading-6">Opening WhatsApp with your order details...</p></div></div>
-        </div>
+        <div className="mb-5 rounded-2xl border border-green-500/30 bg-green-500/10 p-5"><div className="flex items-start gap-3"><CheckCircle2 className="w-6 h-6 text-green-400 shrink-0" /><div><h3 className="text-green-400 font-bold">Order submitted successfully.</h3><p className="text-white/60 text-sm mt-1 leading-6">Opening WhatsApp with your order details...</p></div></div></div>
       )}
-
-      <p className="text-center text-white/35 text-xs mt-4 leading-5">
-        {isCOD ? "Your COD order will be sent to Varahi Eat & Fit for confirmation." : "Your payment is not automatically verified. The restaurant will verify the UPI transaction before confirming your order."}
-      </p>
+      <p className="text-center text-white/35 text-xs mt-4 leading-5">{isCOD ? "Your COD order will be sent to Varahi Eat & Fit for confirmation." : "Your payment is not automatically verified. The restaurant will verify the UPI transaction before confirming your order."}</p>
     </div>
   );
 }
