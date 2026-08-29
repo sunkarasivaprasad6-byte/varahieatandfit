@@ -10,7 +10,6 @@ service cloud.firestore {
     function owner(uid) { return signedIn() && request.auth.uid == uid; }
     function ownsSubscriptionDocument() { return signedIn() && resource.data.userId == request.auth.uid; }
     function ownsNewSubscriptionDocument() { return signedIn() && request.resource.data.userId == request.auth.uid; }
-    function ownsOrderDocument() { return signedIn() && resource.data.userId == request.auth.uid; }
 
     function validGuestOrder() {
       return request.resource.data.keys().hasAll([
