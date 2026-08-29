@@ -6,7 +6,6 @@ import toast from "react-hot-toast";
 import { ChevronRight } from "lucide-react";
 
 import { useCart } from "@/components/cart/CartContext";
-
 import CheckoutNavbar from "@/components/checkout/CheckoutNavbar";
 import CustomerForm from "@/components/checkout/CustomerForm";
 import OrderSummary from "@/components/checkout/OrderSummary";
@@ -31,6 +30,7 @@ function CheckoutContent() {
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("COD");
   const [paymentDone, setPaymentDone] = useState(false);
+  const [upiTransactionId, setUpiTransactionId] = useState("");
   const [placingOrder, setPlacingOrder] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [location, setLocation] = useState("");
@@ -59,12 +59,9 @@ function CheckoutContent() {
     }
 
     setLoadingLocation(true);
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setLocation(
-          `https://maps.google.com/?q=${position.coords.latitude},${position.coords.longitude}`
-        );
+        setLocation(`https://maps.google.com/?q=${position.coords.latitude},${position.coords.longitude}`);
         setLoadingLocation(false);
         toast.success("Location Captured");
       },
@@ -94,9 +91,7 @@ function CheckoutContent() {
           </div>
 
           <div className="max-w-3xl">
-            <h1 className="text-[42px] leading-[0.98] sm:text-5xl sm:leading-tight lg:text-6xl font-bold text-white">
-              Secure Checkout
-            </h1>
+            <h1 className="text-[42px] leading-[0.98] sm:text-5xl sm:leading-tight lg:text-6xl font-bold text-white">Secure Checkout</h1>
             <p className="text-white/50 text-base sm:text-lg lg:text-xl mt-4 sm:mt-5 leading-relaxed max-w-2xl">
               Review your order, complete your payment, and enjoy healthy meals delivered fresh to your doorstep.
             </p>
@@ -104,9 +99,7 @@ function CheckoutContent() {
 
           <div className="mt-8 sm:mt-10 lg:mt-14 grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6 lg:gap-8 xl:gap-10 items-start">
             <div className="space-y-6 sm:space-y-8">
-              <Link href="/" className="inline-flex items-center gap-2 text-[#E63946] text-sm sm:text-base font-medium hover:text-red-400 transition-colors">
-                ← Back to Cart
-              </Link>
+              <Link href="/" className="inline-flex items-center gap-2 text-[#E63946] text-sm sm:text-base font-medium hover:text-red-400 transition-colors">← Back to Cart</Link>
 
               <div className="rounded-[24px] sm:rounded-[30px] overflow-hidden">
                 <CustomerForm
@@ -131,6 +124,8 @@ function CheckoutContent() {
                   setPaymentMethod={setPaymentMethod}
                   paymentDone={paymentDone}
                   setPaymentDone={setPaymentDone}
+                  upiTransactionId={upiTransactionId}
+                  setUpiTransactionId={setUpiTransactionId}
                   grandTotal={grandTotal}
                   upiLink={upiLink}
                 />
@@ -148,6 +143,7 @@ function CheckoutContent() {
                   addressValid={addressValid}
                   paymentMethod={paymentMethod}
                   paymentDone={paymentDone}
+                  upiTransactionId={upiTransactionId}
                   grandTotal={grandTotal}
                   placingOrder={placingOrder}
                   setPlacingOrder={setPlacingOrder}
@@ -173,59 +169,18 @@ function CheckoutContent() {
           </div>
 
           <div className="mt-14 sm:mt-20 lg:mt-24 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-            <div className="bg-[#151515] border border-white/10 rounded-[24px] sm:rounded-3xl p-6 sm:p-8 text-center">
-              <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🚚</div>
-              <h3 className="text-white text-xl sm:text-2xl font-bold">Fast Delivery</h3>
-              <p className="text-white/50 mt-3 sm:mt-4 leading-6 sm:leading-7 text-sm sm:text-base">Fresh food delivered within 30–40 minutes.</p>
-            </div>
-
-            <div className="bg-[#151515] border border-white/10 rounded-[24px] sm:rounded-3xl p-6 sm:p-8 text-center">
-              <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🥗</div>
-              <h3 className="text-white text-xl sm:text-2xl font-bold">Healthy Ingredients</h3>
-              <p className="text-white/50 mt-3 sm:mt-4 leading-6 sm:leading-7 text-sm sm:text-base">Prepared using fresh, nutritious and premium ingredients.</p>
-            </div>
-
-            <div className="bg-[#151515] border border-white/10 rounded-[24px] sm:rounded-3xl p-6 sm:p-8 text-center">
-              <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🔒</div>
-              <h3 className="text-white text-xl sm:text-2xl font-bold">Secure Payment</h3>
-              <p className="text-white/50 mt-3 sm:mt-4 leading-6 sm:leading-7 text-sm sm:text-base">Safe UPI, COD and digital payment methods.</p>
-            </div>
+            <div className="bg-[#151515] border border-white/10 rounded-[24px] sm:rounded-3xl p-6 sm:p-8 text-center"><div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🚚</div><h3 className="text-white text-xl sm:text-2xl font-bold">Fast Delivery</h3><p className="text-white/50 mt-3 sm:mt-4 leading-6 sm:leading-7 text-sm sm:text-base">Fresh food delivered within 30–40 minutes.</p></div>
+            <div className="bg-[#151515] border border-white/10 rounded-[24px] sm:rounded-3xl p-6 sm:p-8 text-center"><div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🥗</div><h3 className="text-white text-xl sm:text-2xl font-bold">Healthy Ingredients</h3><p className="text-white/50 mt-3 sm:mt-4 leading-6 sm:leading-7 text-sm sm:text-base">Prepared using fresh, nutritious and premium ingredients.</p></div>
+            <div className="bg-[#151515] border border-white/10 rounded-[24px] sm:rounded-3xl p-6 sm:p-8 text-center"><div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🔒</div><h3 className="text-white text-xl sm:text-2xl font-bold">Secure Payment</h3><p className="text-white/50 mt-3 sm:mt-4 leading-6 sm:leading-7 text-sm sm:text-base">Safe UPI, COD and digital payment methods.</p></div>
           </div>
 
           <div className="mt-14 sm:mt-20 lg:mt-28 rounded-[24px] sm:rounded-[32px] lg:rounded-[40px] bg-gradient-to-r from-[#171717] to-[#101010] border border-white/10 p-6 sm:p-8 lg:p-12">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10">
-              <div>
-                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">Varahi Eat & Fit</h2>
-                <p className="text-white/50 mt-4 sm:mt-5 leading-7 sm:leading-8 text-sm sm:text-base">
-                  We prepare every meal with fresh ingredients, balanced nutrition and premium quality to help you live a healthier lifestyle.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-5">Customer Care</h3>
-                <div className="space-y-3 sm:space-y-4 text-white/60 text-sm sm:text-base">
-                  <p>📞 +91 63020 94687</p>
-                  <p>📧 support@varahieatfit.com</p>
-                  <p>🕒 Open Everyday</p>
-                  <p>⏰ 8:00 AM – 10:00 PM</p>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-5">Why Choose Us</h3>
-                <div className="space-y-3 sm:space-y-4 text-white/60 text-sm sm:text-base">
-                  <p>🥗 Fresh Ingredients</p>
-                  <p>🚚 Fast Delivery</p>
-                  <p>💳 Secure Payments</p>
-                  <p>⭐ Premium Quality</p>
-                </div>
-              </div>
+              <div><h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">Varahi Eat & Fit</h2><p className="text-white/50 mt-4 sm:mt-5 leading-7 sm:leading-8 text-sm sm:text-base">We prepare every meal with fresh ingredients, balanced nutrition and premium quality to help you live a healthier lifestyle.</p></div>
+              <div><h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-5">Customer Care</h3><div className="space-y-3 sm:space-y-4 text-white/60 text-sm sm:text-base"><p>📞 +91 63020 94687</p><p>📧 support@varahieatfit.com</p><p>🕒 Open Everyday</p><p>⏰ 8:00 AM – 10:00 PM</p></div></div>
+              <div><h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-5">Why Choose Us</h3><div className="space-y-3 sm:space-y-4 text-white/60 text-sm sm:text-base"><p>🥗 Fresh Ingredients</p><p>🚚 Fast Delivery</p><p>💳 Secure Payments</p><p>⭐ Premium Quality</p></div></div>
             </div>
-
-            <div className="border-t border-white/10 mt-8 sm:mt-12 pt-6 sm:pt-8 flex flex-col md:flex-row justify-between items-center text-center md:text-left">
-              <p className="text-white/40 text-sm">© {new Date().getFullYear()} Varahi Eat & Fit. All Rights Reserved.</p>
-              <p className="text-[#E63946] font-semibold mt-3 md:mt-0 text-sm">Made with ❤️ for Healthy Living</p>
-            </div>
+            <div className="border-t border-white/10 mt-8 sm:mt-12 pt-6 sm:pt-8 flex flex-col md:flex-row justify-between items-center text-center md:text-left"><p className="text-white/40 text-sm">© {new Date().getFullYear()} Varahi Eat & Fit. All Rights Reserved.</p><p className="text-[#E63946] font-semibold mt-3 md:mt-0 text-sm">Made with ❤️ for Healthy Living</p></div>
           </div>
         </div>
       </main>
