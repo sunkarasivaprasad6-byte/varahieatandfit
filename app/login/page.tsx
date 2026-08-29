@@ -11,6 +11,20 @@ function getSafeRedirect() {
   const value = new URLSearchParams(window.location.search).get("redirect");
   if (value === "/admin" || value?.startsWith("/admin/")) return value;
 
+  // Admin sub-pages currently send unauthenticated users to /login directly.
+  // Preserve that same-origin admin path so login returns to the page they requested.
+  try {
+    const referrer = document.referrer;
+    if (referrer) {
+      const url = new URL(referrer);
+      if (url.origin === window.location.origin && (url.pathname === "/admin" || url.pathname.startsWith("/admin/"))) {
+        return `${url.pathname}${url.search}${url.hash}`;
+      }
+    }
+  } catch {
+    // Fall back to the normal admin page for an invalid/unavailable referrer.
+  }
+
   return "/admin";
 }
 
