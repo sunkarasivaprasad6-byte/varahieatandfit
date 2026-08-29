@@ -15,7 +15,7 @@ export type SubscriptionPlan = {
 };
 
 const NO_SUBSCRIPTION_IMAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiIHZpZXdCb3g9IjAgMCAxIDEiPjwvc3ZnPg==";
-const BABY_VIP_IMAGE_VERSION = "3";
+const BABY_VIP_IMAGE_VERSION = "4";
 
 /*
   MENU FROM THE SUPPLIED VARAHI EAT & FIT WEEKLY MENU
