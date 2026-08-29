@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { getPlan, DAYS } from "@/lib/subscriptionData";
-import { DELIVERY_SLOTS } from "@/lib/deliverySlotService";
+import { normalizeDeliverySlot } from "@/lib/deliverySlotRules";
 import { isSlotEligibleForNewSubscription } from "@/lib/deliverySlotRules";
 
 export const runtime = "nodejs";
 
-function isDeliverySlot(value: unknown): value is (typeof DELIVERY_SLOTS)[number] {
-  return typeof value === "string" && DELIVERY_SLOTS.includes(value as (typeof DELIVERY_SLOTS)[number]);
+function isDeliverySlot(value: unknown): value is string {
+  return Boolean(normalizeDeliverySlot(typeof value === "string" ? value : undefined));
 }
 function isDay(value: unknown): value is (typeof DAYS)[number] {
   return typeof value === "string" && DAYS.includes(value as (typeof DAYS)[number]);
@@ -27,8 +27,8 @@ export async function POST(request: NextRequest) {
     const instructions = String(body.instructions || "").trim();
     const upiTransactionId = String(body.upiTransactionId || "").trim();
     const startDate = String(body.startDate || "").trim();
-    const regularSlot = String(body.regularSlot || body.slot || "").trim();
-    const firstDeliverySlotOverride = String(body.firstDeliverySlotOverride || "").trim();
+    const regularSlot = normalizeDeliverySlot(String(body.regularSlot || body.slot || "").trim()) || "";
+    const firstDeliverySlotOverride = normalizeDeliverySlot(String(body.firstDeliverySlotOverride || "").trim()) || "";
     const firstDeliveryOverrideDate = String(body.firstDeliveryOverrideDate || "").trim();
     const mealCustomizations = body.mealCustomizations && typeof body.mealCustomizations === "object" ? body.mealCustomizations : {};
     const plan = getPlan(String(body.planId || ""));
