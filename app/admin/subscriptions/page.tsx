@@ -6,7 +6,7 @@ import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { listSubscriptions, type Subscription, updateSubscription } from "@/lib/subscriptionService";
-import { getPlan } from "@/lib/subscriptionData";
+import { getFirstDeliveryDate, getSubscriptionEndDate } from "@/lib/subscriptionScheduling";
 
 function paymentLabel(item: Subscription) {
   if (item.status === "ACTIVE") return "PAID";
@@ -17,39 +17,6 @@ function paymentClass(status: string) {
   if (status === "PAID") return "bg-green-500/10 text-green-400";
   if (status === "REJECTED") return "bg-red-500/10 text-red-400";
   return "bg-yellow-500/10 text-yellow-400";
-}
-
-function getDeliverySlotStart(slot: string, date: Date) {
-  const match = slot.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i);
-  if (!match) return null;
-
-  let hour = Number(match[1]);
-  const minute = Number(match[2] || "0");
-  const period = match[3].toUpperCase();
-  if (period === "PM" && hour !== 12) hour += 12;
-  if (period === "AM" && hour === 12) hour = 0;
-
-  const start = new Date(date);
-  start.setHours(hour, minute, 0, 0);
-  return start;
-}
-
-function getFirstDeliveryDate(item: Subscription, confirmationTime: Date) {
-  const selectedDate = new Date(item.startDate);
-  if (Number.isNaN(selectedDate.getTime())) return confirmationTime;
-
-  const slotStart = getDeliverySlotStart(item.deliverySlot || item.deliveryTime || "", selectedDate);
-  if (!slotStart) return selectedDate;
-
-  // The owner confirms the subscription. If the selected delivery slot has
-  // already started/passed, the first delivery moves to the next calendar day.
-  // The 20-minute cutoff is for changing an existing delivery slot, not for
-  // deciding whether a newly confirmed subscription can use today's slot.
-  if (confirmationTime >= slotStart) {
-    selectedDate.setDate(selectedDate.getDate() + 1);
-  }
-
-  return selectedDate;
 }
 
 export default function AdminSubscriptions() {
@@ -78,9 +45,8 @@ export default function AdminSubscriptions() {
     setBusy(item.id); setMessage("");
     try {
       const confirmationTime = new Date();
-      const firstDelivery = getFirstDeliveryDate(item, confirmationTime);
-      const end = new Date(firstDelivery);
-      end.setDate(firstDelivery.getDate() + 6);
+      const firstDelivery = getFirstDeliveryDate(confirmationTime, item.deliverySlot || item.deliveryTime || "");
+      const end = getSubscriptionEndDate(firstDelivery);
       await updateSubscription(item.id, {
         status: "ACTIVE",
         paymentStatus: "SUCCESS",
