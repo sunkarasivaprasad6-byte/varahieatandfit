@@ -2,6 +2,7 @@ rules_version = '2';
 
 // Production Firestore rules for Varahi Eat & Fit.
 // Sensitive payment, delivery-capacity and admin operations are server-controlled.
+// Deployed explicitly to replace the temporary Firebase Test Mode rules.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
