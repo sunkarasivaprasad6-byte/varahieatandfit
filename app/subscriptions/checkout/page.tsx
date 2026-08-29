@@ -11,12 +11,13 @@ import { ChevronLeft, ExternalLink, LocateFixed, MapPin, MessageSquare } from "l
 import QRCode from "react-qr-code";
 import { auth } from "@/lib/firebase";
 
-type DraftState = { name: string; phone: string; slot: DeliverySlot | ""; instructions: string; address: string; protein: number; step: number; day: (typeof DAYS)[number] };
+type DraftState = { name: string; phone: string; slot: DeliverySlot | ""; instructions: string; address: string; protein: number; step: number; day: (typeof DAYS)[number]; upiTransactionId: string };
 const DRAFT_KEY = "varahi-subscription-checkout";
 const UPI_VPA = "rajasekar.bukke@oksbi";
 const UPI_NAME = "Varahi Eat & Fit";
 
 function proteinRange(actual: number) { return { min: Math.max(0, actual - 2), max: actual + 6 }; }
+function isValidUpiTransactionId(value: string) { return /^[A-Za-z0-9_-]{6,50}$/.test(value.trim()); }
 
 export default function SubscriptionCheckoutPage() { return <Suspense fallback={null}><SubscriptionCheckoutContent /></Suspense>; }
 
@@ -36,13 +37,14 @@ function SubscriptionCheckoutContent() {
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [loading, setLoading] = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [upiTransactionId, setUpiTransactionId] = useState("");
 
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null") as DraftState | null;
       if (saved) {
         setName(saved.name || ""); setPhone(saved.phone || ""); setSlot(saved.slot || ""); setInstructions(saved.instructions || ""); setAddress(saved.address || "");
-        setDay(saved.day || "MON"); setStep(typeof saved.step === "number" ? saved.step : 0); setProtein(Number(saved.protein) || 30);
+        setDay(saved.day || "MON"); setStep(typeof saved.step === "number" ? saved.step : 0); setProtein(Number(saved.protein) || 30); setUpiTransactionId(saved.upiTransactionId || "");
       }
     } catch {}
     getDeliverySlotAvailability().then(setSlots).catch(() => toast.error("Unable to load delivery slot availability."));
@@ -53,7 +55,7 @@ function SubscriptionCheckoutContent() {
   useEffect(() => { if (!meal) return; setProtein((current) => current >= range.min && current <= range.max ? current : meal.protein); }, [meal, range.min, range.max]);
   if (!plan || !meal) return <main className="grid min-h-screen place-items-center bg-[#050505] text-white">Invalid subscription plan.</main>;
 
-  function saveDraft(nextStep = step) { localStorage.setItem(DRAFT_KEY, JSON.stringify({ name, phone, slot, instructions, address, protein, step: nextStep, day } satisfies DraftState)); }
+  function saveDraft(nextStep = step) { localStorage.setItem(DRAFT_KEY, JSON.stringify({ name, phone, slot, instructions, address, protein, step: nextStep, day, upiTransactionId } satisfies DraftState)); }
   function detectLocation() {
     if (!navigator.geolocation) { toast.error("Location detection is not supported by your browser."); return; }
     setDetectingLocation(true);
@@ -68,7 +70,11 @@ function SubscriptionCheckoutContent() {
     }
     if (step === 1 && (protein < range.min || protein > range.max)) { toast.error(`Protein must be between ${range.min}g and ${range.max}g.`); return false; }
     if (step === 3 && address.trim().length < 10) { toast.error("Enter your delivery address or detect your location."); return false; }
-    if (step === 5 && !paymentConfirmed) { toast.error("Please confirm that you have completed the UPI payment."); return false; }
+    if (step === 5) {
+      if (!upiTransactionId.trim()) { toast.error("Please enter your UPI Transaction ID"); return false; }
+      if (!isValidUpiTransactionId(upiTransactionId)) { toast.error("Please enter a valid UPI Transaction ID."); return false; }
+      if (!paymentConfirmed) { toast.error("Please confirm that you have completed the UPI payment."); return false; }
+    }
     return true;
   }
   async function continueStep() {
@@ -82,13 +88,15 @@ function SubscriptionCheckoutContent() {
     window.location.href = upiLink;
   }
   async function submitPayment() {
+    if (!upiTransactionId.trim()) { toast.error("Please enter your UPI Transaction ID"); return; }
+    if (!isValidUpiTransactionId(upiTransactionId)) { toast.error("Please enter a valid UPI Transaction ID."); return; }
     if (!paymentConfirmed) { toast.error("Please confirm that you have completed the UPI payment."); return; }
     setLoading(true);
     try {
       const selected = slots.find((x) => x.slot === slot); if (!selected?.available) throw new Error("That delivery slot is now full. Please choose another slot.");
       const currentUser = auth.currentUser;
       const idToken = currentUser ? await currentUser.getIdToken(true) : "";
-      const response = await fetch("/api/subscriptions/guest", { method: "POST", headers: { "Content-Type": "application/json", ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) }, body: JSON.stringify({ name: name.trim(), phone, address, location: address.startsWith("https://www.google.com/maps?q=") ? address : "", slot, protein, instructions, planId: plan.id, day }) });
+      const response = await fetch("/api/subscriptions/guest", { method: "POST", headers: { "Content-Type": "application/json", ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) }, body: JSON.stringify({ name: name.trim(), phone, address, location: address.startsWith("https://www.google.com/maps?q=") ? address : "", slot, protein, instructions, planId: plan.id, day, upiTransactionId: upiTransactionId.trim() }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || "Unable to submit your subscription.");
       const subscriptionId = String(data.subscriptionId || "");
@@ -120,7 +128,7 @@ function SubscriptionCheckoutContent() {
           {step === 2 && <><h1 className="mt-3 text-3xl font-bold">Any special instructions?</h1><div className="mt-8"><MessageSquare className="mb-3 h-5 w-5 text-[#E63946]" /><textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Less spicy, no onion, etc." className="min-h-40 w-full rounded-2xl border border-white/10 bg-black/25 p-5 text-white outline-none placeholder:text-white/25 focus:border-[#E63946]" /></div></>}
           {step === 3 && <><h1 className="mt-3 text-3xl font-bold">Where should we deliver?</h1><p className="mt-2 text-sm text-white/40">Enter your address manually or use your current location.</p><div className="mt-8"><div className="mb-3 flex items-center justify-between"><div className="flex items-center gap-2"><MapPin className="h-5 w-5 text-[#E63946]" /><span className="text-sm font-medium text-white/70">Delivery location</span></div>{locationDetected && <span className="text-xs text-green-400">Location detected</span>}</div><textarea value={address} onChange={(e) => { setAddress(e.target.value); setLocationDetected(false); }} placeholder="Enter your full delivery address..." className="min-h-36 w-full rounded-2xl border border-white/10 bg-black/25 p-5 text-white outline-none placeholder:text-white/25" />{isMap && <a href={address} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-[#E63946]">View location in Google Maps <ExternalLink className="h-3.5 w-3.5" /></a>}<button type="button" onClick={detectLocation} disabled={detectingLocation} className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#E63946]/40 bg-[#E63946]/10 px-5 py-4 text-sm font-bold text-[#E63946] disabled:opacity-50"><LocateFixed className="h-5 w-5" />{detectingLocation ? "Detecting..." : "Detect My Location"}</button></div></>}
           {step === 4 && <><h1 className="mt-3 text-3xl font-bold">Review your subscription</h1><div className="mt-8 space-y-4 text-sm text-white/60"><p><b className="text-white">Plan:</b> {plan.name} · ₹{plan.price}/week</p><p><b className="text-white">Delivery:</b> {slot}</p><p><b className="text-white">Address:</b> {isMap ? <a href={address} target="_blank" rel="noopener noreferrer" className="text-[#E63946]">Open Google Maps location</a> : address}</p><p><b className="text-white">Instructions:</b> {instructions || "None"}</p></div></>}
-          {step === 5 && <><h1 className="mt-3 text-3xl font-bold">Pay with UPI</h1><div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-6"><p className="text-sm text-white/60">Pay ₹{plan.price} to <b className="text-white">{UPI_VPA}</b></p><div className="mt-6 flex justify-center"><div className="rounded-2xl bg-white p-4"><QRCode value={upiLink} size={220} /></div></div><p className="mt-4 text-center text-sm font-semibold text-white">Scan this QR code with any UPI app</p><p className="mt-1 text-center text-xs text-white/40">PhonePe · Google Pay · Paytm · BHIM · Any UPI App</p><button type="button" onClick={openUPI} className="mt-6 w-full rounded-2xl bg-[#E63946] px-5 py-4 font-bold">Open UPI App</button><label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm font-semibold text-white/80"><input type="checkbox" checked={paymentConfirmed} onChange={(e) => setPaymentConfirmed(e.target.checked)} className="h-5 w-5 accent-[#E63946]" />I've Completed Payment</label></div></>}
+          {step === 5 && <><h1 className="mt-3 text-3xl font-bold">Pay with UPI</h1><div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-6"><p className="text-sm text-white/60">Pay ₹{plan.price} to <b className="text-white">{UPI_VPA}</b></p><div className="mt-6 flex justify-center"><div className="rounded-2xl bg-white p-4"><QRCode value={upiLink} size={220} /></div></div><p className="mt-4 text-center text-sm font-semibold text-white">Scan this QR code with any UPI app</p><p className="mt-1 text-center text-xs text-white/40">PhonePe · Google Pay · Paytm · BHIM · Any UPI App</p><button type="button" onClick={openUPI} className="mt-6 w-full rounded-2xl bg-[#E63946] px-5 py-4 font-bold">Open UPI App</button><label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm font-semibold text-white/80"><input type="checkbox" checked={paymentConfirmed} onChange={(e) => setPaymentConfirmed(e.target.checked)} className="h-5 w-5 accent-[#E63946]" />I've Completed Payment</label><label className="mt-4 block text-sm font-semibold text-white/80">UPI Transaction ID<input value={upiTransactionId} onChange={(e) => setUpiTransactionId(e.target.value.replace(/\s/g, "").slice(0, 50))} className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 p-4 text-white outline-none placeholder:text-white/25 focus:border-[#E63946]" placeholder="Enter your UPI Transaction ID" autoComplete="off" /></label></div></>}
           <div className="mt-10 flex justify-between gap-3"><button type="button" disabled={step === 0 || loading} onClick={() => setStep(Math.max(0, step - 1))} className="rounded-full border border-white/10 px-6 py-3 text-sm disabled:opacity-20">Back</button><button type="button" disabled={loading || detectingLocation || (step === 5 && !paymentConfirmed)} onClick={continueStep} className="rounded-full bg-[#E63946] px-7 py-3 text-sm font-bold disabled:opacity-50">{loading ? "Submitting..." : step === 5 ? "Submit Payment" : "Continue"}</button></div>
         </div>
       </section>
