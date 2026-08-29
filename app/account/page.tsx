@@ -25,6 +25,8 @@ export default function Account() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const value = params.get("returnTo");
+    const signupRequested = params.get("signup") === "1";
+    if (signupRequested) setMode("signup");
     const pendingId = params.get("subscriptionId") || localStorage.getItem("varahi-pending-subscription-id") || "";
     const pendingPhone = params.get("phone") || localStorage.getItem("varahi-pending-subscription-phone") || "";
     if (value) setReturnTo(value);
@@ -94,9 +96,10 @@ export default function Account() {
     <main className="min-h-screen bg-[#050505] text-white grid place-items-center p-6">
       <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-white/[0.035] p-8">
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#E63946]">Varahi Eat & Fit</p>
-        <h1 className="mt-3 text-3xl font-bold">{subscriptionId ? "Connect your subscription" : user ? "Your account" : "Welcome back"}</h1>
+        <h1 className="mt-3 text-3xl font-bold">{subscriptionId ? "Connect your subscription" : user ? "Your account" : mode === "signup" ? "Create your account" : "Welcome back"}</h1>
 
         {subscriptionId && <p className="mt-3 text-sm leading-6 text-white/50">Create an account to keep your subscription connected to you and view it after payment verification.</p>}
+        {!subscriptionId && mode === "signup" && !user && <p className="mt-3 text-sm leading-6 text-white/50">Create your account first. You will be returned to the subscription checkout payment step to submit your payment.</p>}
         {claimError && <div className="mt-5 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">{claimError}</div>}
 
         {subscriptionId && user ? (
