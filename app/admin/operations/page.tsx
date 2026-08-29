@@ -15,10 +15,16 @@ type DeliveryRow = { id:string; source:"SUBSCRIPTION"|"SCHEDULED_MEAL"|"ORDER"; 
 const records = (s:Subscription) => s.skippedMealRecords || [];
 const statusMap = (s:Subscription) => (s as Subscription & {deliveryStatusByDate?:Record<string,DeliveryStatus>}).deliveryStatusByDate || {};
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
-const localDate = (value:string) => { const d = new Date(value); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+const localDate = (value:string) => { const d = new Date(value); if (Number.isNaN(d.getTime())) return value.slice(0,10); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 const weekday = () => ["SUN","MON","TUE","WED","THU","FRI","SAT"][new Date().getDay()];
-function firstDeliveryDate(startValue:string,slot:string){ return getFirstDeliveryDate(new Date(startValue),slot); }
-function subscriptionEligibleToday(s:Subscription,todayDate:string){ if(!s.startDate)return false; const first=firstDeliveryDate(s.startDate,s.deliverySlot||s.deliveryTime||""); const end=s.endDate?new Date(s.endDate):getSubscriptionEndDate(first); const d=new Date(`${todayDate}T00:00:00`); return d.getTime()>=first.getTime()&&d.getTime()<=end.getTime()&&d.getDay()!==0; }
+function subscriptionEligibleToday(s:Subscription,todayDate:string){
+  if(!s.startDate) return false;
+  const first = new Date(s.startDate);
+  if(Number.isNaN(first.getTime())) return false;
+  const end = s.endDate ? new Date(s.endDate) : getSubscriptionEndDate(first);
+  if(Number.isNaN(end.getTime())) return false;
+  return todayDate >= localDate(s.startDate) && todayDate <= localDate(end.toISOString()) && new Date(`${todayDate}T00:00:00`).getDay()!==0;
+}
 
 export default function AdminOperationsPage(){
  const [checking,setChecking]=useState(true),[loading,setLoading]=useState(true),[subs,setSubs]=useState<Subscription[]>([]),[pendingSubscriptions,setPendingSubscriptions]=useState<Subscription[]>([]),[orders,setOrders]=useState<Order[]>([]),[counts,setCounts]=useState<Record<string,number>>({}),[message,setMessage]=useState("");
