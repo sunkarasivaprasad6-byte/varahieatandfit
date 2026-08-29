@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Leaf } from "lucide-react";
 import { DAYS, getPlan, type SubscriptionMeal } from "@/lib/subscriptionData";
 
-type PlanSlug = "silver" | "golden" | "diamond";
+type PlanSlug = "silver" | "golden" | "diamond" | "baby-vip-kit" | "vip-kit";
 
 export default function MealPlanPage() {
   const [selectedPlan, setSelectedPlan] = useState<PlanSlug>("golden");
@@ -13,7 +13,7 @@ export default function MealPlanPage() {
 
   useEffect(() => {
     const plan = new URLSearchParams(window.location.search).get("plan");
-    if (plan === "silver" || plan === "golden" || plan === "diamond") setSelectedPlan(plan);
+    if (plan === "silver" || plan === "golden" || plan === "diamond" || plan === "baby-vip-kit" || plan === "vip-kit") setSelectedPlan(plan);
   }, []);
 
   const plan = getPlan(selectedPlan)!;
@@ -60,8 +60,8 @@ export default function MealPlanPage() {
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <article className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0c0d]">
-            <div className="relative h-[280px] overflow-hidden sm:h-[380px]">
-              <img src={meal.image} alt={`${plan.name} ${currentDay} meal`} className="h-full w-full object-cover" />
+            <div className={`relative overflow-hidden ${meal.image.startsWith("data:") ? "min-h-[220px] sm:min-h-[280px]" : "h-[280px] sm:h-[380px]"}`}>
+              {!meal.image.startsWith("data:") && <img src={meal.image} alt={`${plan.name} ${currentDay} meal`} className="h-full w-full object-cover" />}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
               <div className="absolute bottom-5 left-5 right-5 sm:bottom-7 sm:left-7">
                 <span className="rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white/70 backdrop-blur">{currentDay} menu</span>
@@ -81,7 +81,7 @@ export default function MealPlanPage() {
                 const dayMeal = plan.meals[day.toLowerCase()] as SubscriptionMeal;
                 return (
                   <button key={day} type="button" onClick={() => setActiveDay(index)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${activeDay === index ? "bg-[#E63946]/10 ring-1 ring-[#E63946]/40" : "bg-white/[0.02] hover:bg-white/[0.05]"}`}>
-                    <img src={dayMeal.image} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+                    {!dayMeal.image.startsWith("data:") && <img src={dayMeal.image} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />}
                     <span className="min-w-0"><b className="text-xs text-[#E63946]">{day}</b><span className="mt-1 block truncate text-sm font-semibold">{dayMeal.name}</span></span>
                   </button>
                 );

@@ -26,7 +26,6 @@ const allowedCategories = new Set([
   "Leafy Juices",
 ]);
 
-// Only verified nutrition supplied for this menu is displayed.
 const nutritionByName: Record<string, { calories: number; protein: string }> = {
   "sprout salad": { calories: 113, protein: "6g" },
   "lean chicken salad": { calories: 185, protein: "32g" },
@@ -42,6 +41,10 @@ const nutritionByName: Record<string, { calories: number; protein: string }> = {
   "boiled egg": { calories: 70, protein: "6g" },
   "gold standard whey protein": { calories: 1080, protein: "55g" },
   "mb biozyme whey protein": { calories: 1080, protein: "55g" },
+  "gold standard whey protein - 250 ml": { calories: 1080, protein: "55g" },
+  "gold standard whey protein - 300 ml": { calories: 1080, protein: "55g" },
+  "mb biozyme whey protein - 250 ml": { calories: 1080, protein: "55g" },
+  "mb biozyme whey protein - 300 ml": { calories: 1080, protein: "55g" },
 };
 
 function normalizeMenuItem(item: MenuItem): MenuItem {
@@ -61,26 +64,52 @@ function normalizeMenuItem(item: MenuItem): MenuItem {
   };
 }
 
+const NO_MENU_IMAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiIHZpZXdCb3g9IjAgMCAxIDEiPjwvc3ZnPg==";
+
 const proteinShakeFallbacks: MenuItem[] = [
   {
-    id: "protein-gold-standard-whey",
-    name: "Gold Standard Whey Protein",
-    description: "Gold Standard whey protein shake",
+    id: "protein-gold-standard-whey-250",
+    name: "Gold Standard Whey Protein - 250 ml",
+    description: "Gold Standard whey protein shake - 250 ml",
     category: "Protein Shakes",
     price: 89,
-    image: "/menu/protein-shake.svg",
+    image: NO_MENU_IMAGE,
     rating: 4.8,
     calories: 1080,
     protein: "55g",
     isVegetarian: true,
   },
   {
-    id: "protein-mb-biozyme-whey",
-    name: "MB Biozyme Whey Protein",
-    description: "MB Biozyme whey protein shake",
+    id: "protein-gold-standard-whey-300",
+    name: "Gold Standard Whey Protein - 300 ml",
+    description: "Gold Standard whey protein shake - 300 ml",
     category: "Protein Shakes",
     price: 99,
-    image: "/menu/protein-shake.svg",
+    image: NO_MENU_IMAGE,
+    rating: 4.8,
+    calories: 1080,
+    protein: "55g",
+    isVegetarian: true,
+  },
+  {
+    id: "protein-mb-biozyme-whey-250",
+    name: "MB Biozyme Whey Protein - 250 ml",
+    description: "MB Biozyme whey protein shake - 250 ml",
+    category: "Protein Shakes",
+    price: 89,
+    image: NO_MENU_IMAGE,
+    rating: 4.8,
+    calories: 1080,
+    protein: "55g",
+    isVegetarian: true,
+  },
+  {
+    id: "protein-mb-biozyme-whey-300",
+    name: "MB Biozyme Whey Protein - 300 ml",
+    description: "MB Biozyme whey protein shake - 300 ml",
+    category: "Protein Shakes",
+    price: 99,
+    image: NO_MENU_IMAGE,
     rating: 4.8,
     calories: 1080,
     protein: "55g",
@@ -88,11 +117,14 @@ const proteinShakeFallbacks: MenuItem[] = [
   },
 ];
 
+const legacyProteinNames = new Set(["Gold Standard Whey Protein", "MB Biozyme Whey Protein"]);
+
 export async function getMenu() {
   const snapshot = await getDocs(menuRef);
   const firebaseItems = snapshot.docs
     .map((docItem) => normalizeMenuItem({ id: docItem.id, ...(docItem.data() as MenuItem) }))
-    .filter((item) => allowedCategories.has(item.category));
+    .filter((item) => allowedCategories.has(item.category))
+    .filter((item) => !legacyProteinNames.has(item.name));
   const existingNames = new Set(firebaseItems.map((item) => item.name));
   const missingProteinShakes = proteinShakeFallbacks.filter((item) => !existingNames.has(item.name));
   return [...firebaseItems, ...missingProteinShakes];
@@ -108,13 +140,13 @@ export async function addFood(item: Omit<MenuItem, "id">) {
 
 export async function updateFood(id: string, data: Partial<MenuItem> & { available?: boolean }) {
   const cleanData = removeUndefinedFields(data as Record<string, unknown>);
-
-  // These two protein shakes are fallback items when their Firestore documents
-  // do not exist yet. Create the document on first edit instead of calling
-  // updateDoc(), which only works when a document already exists.
   const isProteinShakeFallback =
     id === "protein-gold-standard-whey" ||
-    id === "protein-mb-biozyme-whey";
+    id === "protein-mb-biozyme-whey" ||
+    id === "protein-gold-standard-whey-250" ||
+    id === "protein-gold-standard-whey-300" ||
+    id === "protein-mb-biozyme-whey-250" ||
+    id === "protein-mb-biozyme-whey-300";
 
   if (isProteinShakeFallback) {
     return await setDoc(doc(db, "menu", id), cleanData, { merge: true });
