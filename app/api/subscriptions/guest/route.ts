@@ -14,14 +14,19 @@ function isDay(value: unknown): value is (typeof DAYS)[number] {
   return typeof value === "string" && DAYS.includes(value as (typeof DAYS)[number]);
 }
 
+function isValidUpiTransactionId(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{6,50}$/.test(value.trim());
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as { name?: string; phone?: string; address?: string; location?: string; slot?: string; protein?: number; instructions?: string; planId?: string; day?: string };
+    const body = await request.json() as { name?: string; phone?: string; address?: string; location?: string; slot?: string; protein?: number; instructions?: string; planId?: string; day?: string; upiTransactionId?: string };
     const name = String(body.name || "").trim();
     const phone = String(body.phone || "").trim();
     const address = String(body.address || "").trim();
     const location = String(body.location || "").trim();
     const instructions = String(body.instructions || "").trim();
+    const upiTransactionId = String(body.upiTransactionId || "").trim();
     const plan = getPlan(String(body.planId || ""));
 
     if (name.length < 3) return NextResponse.json({ error: "Enter your full name." }, { status: 400 });
@@ -30,6 +35,7 @@ export async function POST(request: NextRequest) {
     if (!isDeliverySlot(body.slot)) return NextResponse.json({ error: "Please select a delivery slot." }, { status: 400 });
     if (!plan) return NextResponse.json({ error: "Invalid subscription plan." }, { status: 400 });
     if (!isDay(body.day)) return NextResponse.json({ error: "Invalid meal day." }, { status: 400 });
+    if (!isValidUpiTransactionId(upiTransactionId)) return NextResponse.json({ error: "Please enter a valid UPI Transaction ID." }, { status: 400 });
 
     const meal = plan.meals[body.day.toLowerCase()];
     if (!meal) return NextResponse.json({ error: "Invalid meal selection." }, { status: 400 });
@@ -53,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     const subscriptionRef = adminDb.collection("subscriptions").doc();
-    await subscriptionRef.set({ userId, guest, customerName: name, phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: "", endDate: "", deliverySlot: body.slot, deliveryTime: body.slot, address, location, proteinPerMeal: protein, caloriesPerMeal: meal.calories, instructions, skippedMeals: 0, paymentStatus: "PENDING", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+    await subscriptionRef.set({ userId, guest, customerName: name, phone, planId: plan.id, planName: plan.name, amount: plan.price, status: "PENDING_PAYMENT", startDate: "", endDate: "", deliverySlot: body.slot, deliveryTime: body.slot, address, location, proteinPerMeal: protein, caloriesPerMeal: meal.calories, instructions, upiTransactionId, skippedMeals: 0, paymentStatus: "PENDING", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     return NextResponse.json({ subscriptionId: subscriptionRef.id, guestId: guest ? userId : null, linkedToAccount: !guest });
   } catch (error) {
     console.error("Failed to create guest subscription:", error);
