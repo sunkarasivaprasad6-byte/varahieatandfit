@@ -23,7 +23,7 @@ interface Props {
 
   totalPrice: number;
   deliveryCharge: number;
-  gst: number;
+  packagingCharge: number;
   discount: number;
   grandTotal: number;
 
@@ -39,6 +39,7 @@ export default function OrderSummary({
   cart,
   totalPrice,
   deliveryCharge,
+  packagingCharge,
   discount,
   grandTotal,
   coupon,
@@ -265,6 +266,11 @@ export default function OrderSummary({
               <div className="flex justify-between text-white/70">
                 <span>Delivery Charges</span>
                 <span>₹{deliveryCharge}</span>
+              </div>
+
+              <div className="flex justify-between text-white/70">
+                <span>Packaging Charges</span>
+                <span>₹{packagingCharge}</span>
               </div>
 
               <div className="flex justify-between text-green-400 font-semibold">
