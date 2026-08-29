@@ -1,22 +1,19 @@
-export const DELIVERY_SLOTS = [
-  { id: "morning", label: "7:00 AM – 9:00 AM", startHour: 7, startMinute: 0 },
-  { id: "afternoon", label: "12:00 PM – 2:00 PM", startHour: 12, startMinute: 0 },
-  { id: "evening", label: "7:00 PM – 9:00 PM", startHour: 19, startMinute: 0 },
-] as const;
+import core from "./deliverySlotRulesCore";
+
+export const DELIVERY_SLOTS = core.DELIVERY_SLOTS as readonly [
+  { id: "morning"; label: "7:00 AM – 9:00 AM"; startHour: 7; startMinute: 0 },
+  { id: "afternoon"; label: "12:00 PM – 2:00 PM"; startHour: 12; startMinute: 0 },
+  { id: "evening"; label: "7:00 PM – 9:00 PM"; startHour: 19; startMinute: 0 },
+];
 
 export type DeliverySlotId = (typeof DELIVERY_SLOTS)[number]["id"];
 
 export const SLOT_CHANGE_CUTOFF_MINUTES = 20;
 
 export function getSlot(slotId: string | undefined) {
-  return DELIVERY_SLOTS.find((slot) => slot.id === slotId);
+  return core.getSlot(slotId);
 }
 
 export function isSlotChangeLocked(slotId: string | undefined, now = new Date()) {
-  const slot = getSlot(slotId);
-  if (!slot) return false;
-
-  const cutoff = new Date(now);
-  cutoff.setHours(slot.startHour, slot.startMinute - SLOT_CHANGE_CUTOFF_MINUTES, 0, 0);
-  return now >= cutoff;
+  return core.isSlotChangeLocked(slotId, now);
 }
