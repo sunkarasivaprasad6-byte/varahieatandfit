@@ -26,7 +26,7 @@ const allowedCategories = new Set([
 ]);
 
 // Only verified nutrition supplied for this menu is displayed.
-// Missing values are deliberately left undefined; no estimates are generated.
+// Missing values are deliberately omitted from Firestore writes.
 const nutritionByName: Record<
   string,
   { calories: number; protein: string; category?: string }
@@ -56,10 +56,7 @@ function normalizeMenuItem(item: MenuItem): MenuItem {
           calories: nutrition.calories,
           protein: nutrition.protein,
         }
-      : {
-          calories: undefined,
-          protein: undefined,
-        }),
+      : {}),
     category: nutrition?.category ?? category,
   };
 }
@@ -107,15 +104,29 @@ export async function getMenu() {
   return [...firebaseItems, ...missingProteinShakes];
 }
 
+/**
+ * Firestore does not accept undefined field values.
+ * Keep the existing UI/data model, but remove optional fields that are
+ * undefined before sending a document to Firestore.
+ */
+function removeUndefinedFields<T extends Record<string, unknown>>(data: T): T {
+  return Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined)
+  ) as T;
+}
+
 export async function addFood(item: Omit<MenuItem, "id">) {
-  return await addDoc(menuRef, item);
+  return await addDoc(menuRef, removeUndefinedFields(item as Record<string, unknown>));
 }
 
 export async function updateFood(
   id: string,
   data: Partial<MenuItem> & { available?: boolean }
 ) {
-  return await updateDoc(doc(db, "menu", id), data);
+  return await updateDoc(
+    doc(db, "menu", id),
+    removeUndefinedFields(data as Record<string, unknown>)
+  );
 }
 
 export async function deleteFood(id: string) {
