@@ -9,6 +9,7 @@ import { DELIVERY_SLOTS, getDeliverySlotAvailability, type DeliverySlot } from "
 import { toast } from "react-hot-toast";
 import { ChevronLeft, ExternalLink, LocateFixed, MapPin, MessageSquare } from "lucide-react";
 import QRCode from "react-qr-code";
+import { auth } from "@/lib/firebase";
 
 type DraftState = { name: string; phone: string; slot: DeliverySlot | ""; instructions: string; address: string; protein: number; step: number; day: (typeof DAYS)[number] };
 const DRAFT_KEY = "varahi-subscription-checkout";
@@ -85,12 +86,20 @@ function SubscriptionCheckoutContent() {
     setLoading(true);
     try {
       const selected = slots.find((x) => x.slot === slot); if (!selected?.available) throw new Error("That delivery slot is now full. Please choose another slot.");
-      const response = await fetch("/api/subscriptions/guest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), phone, address, location: address.startsWith("https://www.google.com/maps?q=") ? address : "", slot, protein, instructions, planId: plan.id, day }) });
+      const currentUser = auth.currentUser;
+      const idToken = currentUser ? await currentUser.getIdToken(true) : "";
+      const response = await fetch("/api/subscriptions/guest", { method: "POST", headers: { "Content-Type": "application/json", ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) }, body: JSON.stringify({ name: name.trim(), phone, address, location: address.startsWith("https://www.google.com/maps?q=") ? address : "", slot, protein, instructions, planId: plan.id, day }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || "Unable to submit your subscription.");
       const subscriptionId = String(data.subscriptionId || "");
       if (!subscriptionId) throw new Error("Subscription was not created. Please try again.");
       localStorage.removeItem(DRAFT_KEY);
+      if (!currentUser) {
+        localStorage.setItem("varahi-pending-subscription-id", subscriptionId);
+        localStorage.setItem("varahi-pending-subscription-phone", phone);
+        window.location.href = `/account?mode=signup&subscriptionId=${encodeURIComponent(subscriptionId)}&phone=${encodeURIComponent(phone)}&returnTo=${encodeURIComponent(`/subscriptions/payment-verification?id=${subscriptionId}&plan=${plan.id}`)}`;
+        return;
+      }
       window.location.href = `/subscriptions/payment-verification?id=${encodeURIComponent(subscriptionId)}&plan=${encodeURIComponent(plan.id)}`;
     } catch (error) { toast.error(error instanceof Error ? error.message : "Unable to submit payment"); }
     finally { setLoading(false); }
