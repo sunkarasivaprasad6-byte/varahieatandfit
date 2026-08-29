@@ -7,7 +7,7 @@ export interface MenuItem {
   price: number;
   image: string;
   rating: number;
-  calories: number;
-  protein: string;
+  calories?: number;
+  protein?: string;
   isVegetarian: boolean;
 }
