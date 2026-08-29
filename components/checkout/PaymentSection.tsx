@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import QRCode from "react-qr-code";
 import {
@@ -15,6 +16,8 @@ interface Props {
   setPaymentMethod: (value: string) => void;
   paymentDone: boolean;
   setPaymentDone: (value: boolean) => void;
+  upiTransactionId: string;
+  setUpiTransactionId: (value: string) => void;
   grandTotal: number;
   upiLink: string;
 }
@@ -24,9 +27,13 @@ export default function PaymentSection({
   setPaymentMethod,
   paymentDone,
   setPaymentDone,
+  upiTransactionId,
+  setUpiTransactionId,
   grandTotal,
   upiLink,
 }: Props) {
+  const [transactionTouched, setTransactionTouched] = useState(false);
+
   const methods = [
     {
       id: "COD",
@@ -43,13 +50,7 @@ export default function PaymentSection({
       title: "PhonePe",
       subtitle: "Fast Payment",
       icon: (
-        <Image
-          src="/payment-logos/phonepe.png"
-          alt="PhonePe"
-          width={52}
-          height={52}
-          className="w-12 h-12 object-contain"
-        />
+        <Image src="/payment-logos/phonepe.png" alt="PhonePe" width={52} height={52} className="w-12 h-12 object-contain" />
       ),
     },
     {
@@ -57,13 +58,7 @@ export default function PaymentSection({
       title: "Google Pay",
       subtitle: "Secure",
       icon: (
-        <Image
-          src="/payment-logos/googlepay.png"
-          alt="Google Pay"
-          width={52}
-          height={52}
-          className="w-12 h-12 object-contain"
-        />
+        <Image src="/payment-logos/googlepay.png" alt="Google Pay" width={52} height={52} className="w-12 h-12 object-contain" />
       ),
     },
     {
@@ -71,13 +66,7 @@ export default function PaymentSection({
       title: "Paytm",
       subtitle: "UPI & Wallet",
       icon: (
-        <Image
-          src="/payment-logos/paytm.png"
-          alt="Paytm"
-          width={52}
-          height={52}
-          className="w-12 h-12 object-contain"
-        />
+        <Image src="/payment-logos/paytm.png" alt="Paytm" width={52} height={52} className="w-12 h-12 object-contain" />
       ),
     },
     {
@@ -94,7 +83,6 @@ export default function PaymentSection({
 
   function openUPI() {
     let appOpened = false;
-
     const handleVisibility = () => {
       if (document.hidden) appOpened = true;
     };
@@ -105,14 +93,31 @@ export default function PaymentSection({
     setTimeout(() => {
       document.removeEventListener("visibilitychange", handleVisibility);
       if (!appOpened) {
-        toast.error(
-          "No UPI app found. Scan the QR code or choose Cash on Delivery."
-        );
+        toast.error("No UPI app found. Scan the QR code or choose Cash on Delivery.");
       }
     }, 2000);
   }
 
   const onlinePayment = paymentMethod !== "COD";
+  const normalizedTransactionId = upiTransactionId.trim();
+  const transactionIdValid = /^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$/.test(normalizedTransactionId);
+
+  function submitPayment() {
+    setTransactionTouched(true);
+
+    if (!normalizedTransactionId) {
+      toast.error("Please enter your UPI Transaction ID");
+      return;
+    }
+
+    if (!transactionIdValid) {
+      toast.error("Please enter a valid UPI Transaction ID");
+      return;
+    }
+
+    setUpiTransactionId(normalizedTransactionId);
+    setPaymentDone(true);
+  }
 
   return (
     <div className="bg-[#171717] rounded-3xl border border-white/10 p-8 mt-10">
@@ -128,7 +133,8 @@ export default function PaymentSection({
             key={item.id}
             onClick={() => {
               setPaymentMethod(item.id);
-              if (item.id === "COD") setPaymentDone(false);
+              setPaymentDone(false);
+              if (item.id === "COD") setUpiTransactionId("");
             }}
             className={`rounded-2xl border p-5 transition-all duration-300 hover:scale-105 ${
               paymentMethod === item.id
@@ -136,9 +142,7 @@ export default function PaymentSection({
                 : "border-white/10 bg-[#222]"
             }`}
           >
-            <div className="h-14 mb-3 flex items-center justify-center">
-              {item.icon}
-            </div>
+            <div className="h-14 mb-3 flex items-center justify-center">{item.icon}</div>
             <h3 className="text-white font-bold">{item.title}</h3>
             <p className="text-white/50 text-sm mt-1">{item.subtitle}</p>
           </button>
@@ -154,13 +158,9 @@ export default function PaymentSection({
           </div>
 
           <h3 className="text-2xl font-bold text-white mt-6">Scan & Pay</h3>
-          <p className="text-white/60 mt-3">
-            PhonePe • Google Pay • Paytm • BHIM • Any UPI App
-          </p>
+          <p className="text-white/60 mt-3">PhonePe • Google Pay • Paytm • BHIM • Any UPI App</p>
 
-          <div className="text-[#E63946] text-4xl font-bold mt-6">
-            ₹{grandTotal}
-          </div>
+          <div className="text-[#E63946] text-4xl font-bold mt-6">₹{grandTotal}</div>
 
           <button
             type="button"
@@ -170,19 +170,45 @@ export default function PaymentSection({
             Open UPI App
           </button>
 
+          <div className="mt-8 text-left">
+            <label htmlFor="upi-transaction-id" className="block text-white font-semibold mb-2">
+              UPI Transaction ID <span className="text-[#E63946]">*</span>
+            </label>
+            <input
+              id="upi-transaction-id"
+              type="text"
+              value={upiTransactionId}
+              onChange={(event) => {
+                setUpiTransactionId(event.target.value);
+                setPaymentDone(false);
+              }}
+              onBlur={() => setTransactionTouched(true)}
+              placeholder="Enter your UPI transaction ID / UTR"
+              autoComplete="off"
+              maxLength={64}
+              className="w-full rounded-2xl border border-white/10 bg-[#202020] px-4 py-4 text-white placeholder:text-white/30 outline-none focus:border-[#E63946]"
+            />
+            {transactionTouched && upiTransactionId.trim() !== "" && !transactionIdValid && (
+              <p className="text-red-400 text-sm mt-2">Please enter a valid UPI Transaction ID.</p>
+            )}
+            <p className="text-white/40 text-xs mt-2">
+              Enter the payment reference shown by your UPI app after payment.
+            </p>
+          </div>
+
           <button
             type="button"
-            onClick={() => setPaymentDone(true)}
+            onClick={submitPayment}
             disabled={paymentDone}
             className="block w-full mt-5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800/60 disabled:cursor-not-allowed rounded-2xl py-4 text-white font-bold transition"
           >
-            {paymentDone ? "✔ Payment Submitted" : "✔ I've Completed Payment"}
+            {paymentDone ? "✔ Payment Submitted" : "✔ I Have Paid"}
           </button>
 
           {paymentDone && (
             <div className="mt-5 flex items-center justify-center gap-3 text-green-400 text-sm leading-6">
               <CheckCircle2 className="shrink-0" />
-              Payment submitted for verification. We will verify your payment and confirm your order shortly on WhatsApp.
+              Payment submitted for verification. Your order will now be sent to Varahi Eat & Fit.
             </div>
           )}
         </div>
@@ -194,9 +220,7 @@ export default function PaymentSection({
             <ShieldCheck className="text-green-400" />
             <div>
               <h3 className="text-green-400 font-bold text-lg">Cash on Delivery</h3>
-              <p className="text-white/60 mt-1">
-                Pay safely after receiving your delicious meal.
-              </p>
+              <p className="text-white/60 mt-1">Pay safely after receiving your delicious meal.</p>
             </div>
           </div>
         </div>
