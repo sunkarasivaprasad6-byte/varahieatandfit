@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-import { isSlotChangeLocked } from "@/lib/deliverySlotRules";
 
 export const runtime = "nodejs";
 
@@ -137,9 +136,9 @@ async function changeSlot(uid: string, subscriptionId: string, nextSlot: Deliver
     if (sub.status !== "ACTIVE") throw new Error("Only active subscriptions can change delivery slots");
     const currentSlot = sub.deliverySlot;
     if (!isSlot(currentSlot) || currentSlot === nextSlot) return;
-    if (isSlotChangeLocked(currentSlot)) {
-      throw new Error("Delivery slot changes are locked 20 minutes before the slot starts.");
-    }
+
+    // A customer is allowed to change away from a slot that has already passed.
+    // The cutoff applies to the NEW slot being selected, not to the old slot.
     const nextRef = counterRef(nextSlot);
     const currentRef = counterRef(currentSlot);
     const [nextSnap, currentSnap] = await Promise.all([tx.get(nextRef), tx.get(currentRef)]);
