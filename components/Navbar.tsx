@@ -99,8 +99,12 @@ export default function Navbar() {
         <div className="mt-4 rounded-2xl border border-white/10 bg-black/50 backdrop-blur-xl">
           <div className="flex h-[72px] items-center justify-between px-4 sm:px-6">
             <Link href="/" className="flex items-center gap-3 min-w-0">
-              <div className="h-10 w-10 shrink-0 rounded-full bg-[#E63946] flex items-center justify-center font-bold text-white text-xl">
-                V
+              <div className="h-10 w-10 shrink-0 rounded-full overflow-hidden flex items-center justify-center">
+                <img
+                  src="/images/logo.png"
+                  alt="Varahi Eat & Fit logo"
+                  className="h-full w-full object-contain"
+                />
               </div>
 
               <div className="min-w-0">
