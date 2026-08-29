@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import { createHash } from "node:crypto";
 import { adminDb } from "@/lib/firebaseAdmin";
 
 export const runtime = "nodejs";
@@ -27,6 +28,10 @@ type GuestOrder = {
   deliveryOtp?: string;
   otpVerified?: boolean;
 };
+
+function orderDocumentId(orderId: string) {
+  return createHash("sha256").update(orderId).digest("hex");
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,9 +80,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const orderRef = adminDb.collection("orders").doc();
+    // Use a deterministic document ID derived from the client order ID. This makes
+    // retries idempotent and prevents the same order from creating multiple docs.
+    const orderRef = adminDb.collection("orders").doc(orderDocumentId(orderId));
+    const existing = await orderRef.get();
 
-    await orderRef.set({
+    if (existing.exists) {
+      const existingOrder = existing.data() || {};
+      if (existingOrder.orderId === orderId) {
+        return NextResponse.json({ orderId, documentId: orderRef.id, duplicate: true });
+      }
+      return NextResponse.json({ error: "Unable to create the order. Please try again." }, { status: 409 });
+    }
+
+    await orderRef.create({
       orderId,
       name,
       phone,
@@ -98,6 +114,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ orderId, documentId: orderRef.id });
   } catch (error) {
+    // Firestore create() is intentionally used above so concurrent retries with
+    // the same orderId cannot both create separate order documents.
     console.error("Failed to create guest restaurant order:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to submit your order." },
