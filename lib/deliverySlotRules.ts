@@ -6,7 +6,7 @@ export const DELIVERY_SLOTS = [
 
 export type DeliverySlotId = (typeof DELIVERY_SLOTS)[number]["id"];
 
-export const SLOT_CHANGE_CUTOFF_MINUTES = 30;
+export const SLOT_CHANGE_CUTOFF_MINUTES = 20;
 
 export function getSlot(slotId: string | undefined) {
   return DELIVERY_SLOTS.find((slot) => slot.id === slotId);
