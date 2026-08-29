@@ -7,8 +7,11 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 
 function getSafeRedirect() {
   if (typeof window === "undefined") return "/admin";
+
   const value = new URLSearchParams(window.location.search).get("redirect");
-  return value && value.startsWith("/admin/") || value === "/admin" ? value : "/admin";
+  if (value === "/admin" || value?.startsWith("/admin/")) return value;
+
+  return "/admin";
 }
 
 export default function LoginPage() {
