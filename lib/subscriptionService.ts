@@ -1,10 +1,10 @@
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { releaseDeliverySlotReservation, reserveDeliverySlot, type DeliverySlot } from "@/lib/deliverySlotService";
-import { getFirstDeliveryDate, getSubscriptionEndDate } from "@/lib/subscriptionScheduling";
+import { getSubscriptionEndDate } from "@/lib/subscriptionScheduling";
 
 export type SkippedMealRecord = { id: string; skippedAt: string; expiresAt: string; scheduledFor?: string; scheduledTime?: string; status: "AVAILABLE" | "SCHEDULED" | "USED" | "EXPIRED" };
-export type Subscription = { id?: string; userId: string; customerName: string; phone: string; planId: string; planName: string; amount: number; status: "PENDING_PAYMENT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED"; startDate: string; endDate: string; deliverySlot: DeliverySlot; deliveryTime: string; address: string; proteinPerMeal: number; caloriesPerMeal: number; instructions: string; skippedMeals: number; skippedMealRecords?: SkippedMealRecord[]; paymentOrderId?: string; paymentId?: string; paymentStatus?: "PENDING" | "SUCCESS" | "FAILED"; paymentVerifiedAt?: unknown; paymentFailedAt?: unknown; slotReservationId?: string; slotReservationExpiresAt?: string; createdAt?: unknown; updatedAt?: unknown };
+export type Subscription = { id?: string; userId: string; customerName: string; phone: string; planId: string; planName: string; amount: number; status: "PENDING_PAYMENT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED"; startDate: string; endDate: string; deliverySlot: DeliverySlot; deliveryTime: string; address: string; proteinPerMeal: number; caloriesPerMeal: number; mealCustomizations?: Record<string, { protein: number }>; instructions: string; skippedMeals: number; skippedMealRecords?: SkippedMealRecord[]; paymentOrderId?: string; paymentId?: string; paymentStatus?: "PENDING" | "SUCCESS" | "FAILED"; paymentVerifiedAt?: unknown; paymentFailedAt?: unknown; slotReservationId?: string; slotReservationExpiresAt?: string; createdAt?: unknown; updatedAt?: unknown };
 
 export async function createSubscriptionDraft(data: Omit<Subscription, "id" | "createdAt" | "updatedAt">) {
   if (!data.deliverySlot) throw new Error("Please select a delivery slot");
@@ -25,111 +25,39 @@ export async function getActiveSubscriptions(userId: string) {
   await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() })));
   return items.filter((s) => !expired.some((e) => e.id === s.id));
 }
-
-export async function getActiveSubscription(userId: string) {
-  const subscriptions = await getActiveSubscriptions(userId);
-  return subscriptions[0] || null;
-}
-
+export async function getActiveSubscription(userId: string) { const subscriptions = await getActiveSubscriptions(userId); return subscriptions[0] || null; }
 export function subscribeToActiveSubscriptions(userId: string, callback: (value: Subscription[]) => void) {
   const q = query(collection(db, "subscriptions"), where("userId", "==", userId), where("status", "==", "ACTIVE"));
-  return onSnapshot(q, async (snap) => {
-    const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription);
-    const expired = items.filter(isExpired);
-    await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() })));
-    callback(items.filter((s) => !expired.some((e) => e.id === s.id)));
-  });
+  return onSnapshot(q, async (snap) => { const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription); const expired = items.filter(isExpired); await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() }))); callback(items.filter((s) => !expired.some((e) => e.id === s.id))); });
 }
+export function subscribeToActiveSubscription(userId: string, callback: (value: Subscription | null) => void) { return subscribeToActiveSubscriptions(userId, (subscriptions) => callback(subscriptions[0] || null)); }
 
-export function subscribeToActiveSubscription(userId: string, callback: (value: Subscription | null) => void) {
-  return subscribeToActiveSubscriptions(userId, (subscriptions) => callback(subscriptions[0] || null));
-}
-
-/** Payment activation is server-controlled by the verified Cashfree webhook. */
 export async function activateSubscription(id: string, _payment?: { orderId?: string; paymentId?: string }) {
   const user = auth.currentUser; if (!user) throw new Error("Sign in required");
-  const ref = doc(db, "subscriptions", id);
-  const initial = await getDoc(ref);
+  const ref = doc(db, "subscriptions", id); const initial = await getDoc(ref);
   if (!initial.exists() || initial.data().userId !== user.uid) throw new Error("Subscription not found");
   const current = initial.data() as Subscription;
   if (current.status === "CANCELLED" || current.status === "COMPLETED") throw new Error("This subscription can no longer be activated");
   if (current.status === "ACTIVE" && current.paymentStatus === "SUCCESS") return;
-
-  for (let attempt = 0; attempt < 15; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    const snap = await getDoc(ref);
-    if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found");
-    const latest = snap.data() as Subscription;
-    if (latest.status === "ACTIVE" && latest.paymentStatus === "SUCCESS") return;
-    if (latest.status === "CANCELLED" || latest.status === "COMPLETED") throw new Error("This subscription can no longer be activated");
-  }
+  for (let attempt = 0; attempt < 15; attempt += 1) { await new Promise((resolve) => setTimeout(resolve, 1000)); const snap = await getDoc(ref); if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found"); const latest = snap.data() as Subscription; if (latest.status === "ACTIVE" && latest.paymentStatus === "SUCCESS") return; if (latest.status === "CANCELLED" || latest.status === "COMPLETED") throw new Error("This subscription can no longer be activated"); }
   throw new Error("Payment is still being verified. Please check your subscription again in a moment.");
 }
+export async function markSubscriptionPaymentFailed(id: string) { const user = auth.currentUser; if (!user) throw new Error("Sign in required"); const ref = doc(db, "subscriptions", id); const snap = await getDoc(ref); if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found"); const data = snap.data() as Subscription; await releaseDeliverySlotReservation(data.slotReservationId); await updateDoc(ref, { status: "CANCELLED", paymentStatus: "FAILED", paymentFailedAt: serverTimestamp(), updatedAt: serverTimestamp() }); }
+export async function markPaymentPending(id: string, orderId: string) { const user = auth.currentUser; if (!user) throw new Error("Sign in required"); const ref = doc(db, "subscriptions", id); const snap = await getDoc(ref); if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found"); await updateDoc(ref, { paymentOrderId: orderId, paymentStatus: "PENDING", updatedAt: serverTimestamp() }); }
 
-export async function markSubscriptionPaymentFailed(id: string) {
-  const user = auth.currentUser; if (!user) throw new Error("Sign in required");
-  const ref = doc(db, "subscriptions", id); const snap = await getDoc(ref);
-  if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found");
-  const data = snap.data() as Subscription;
-  await releaseDeliverySlotReservation(data.slotReservationId);
-  await updateDoc(ref, { status: "CANCELLED", paymentStatus: "FAILED", paymentFailedAt: serverTimestamp(), updatedAt: serverTimestamp() });
-}
-
-export async function markPaymentPending(id: string, orderId: string) {
-  const user = auth.currentUser; if (!user) throw new Error("Sign in required");
-  const ref = doc(db, "subscriptions", id); const snap = await getDoc(ref);
-  if (!snap.exists() || snap.data().userId !== user.uid) throw new Error("Subscription not found");
-  await updateDoc(ref, { paymentOrderId: orderId, paymentStatus: "PENDING", updatedAt: serverTimestamp() });
-}
-
-function localCalendarDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function dedupeSkippedMealRecords(records: SkippedMealRecord[]) {
-  const rank: Record<SkippedMealRecord["status"], number> = { EXPIRED: 0, USED: 1, AVAILABLE: 2, SCHEDULED: 3 };
-  const bySkippedDate = new Map<string, SkippedMealRecord>();
-  for (const record of records) {
-    const key = localCalendarDate(record.skippedAt);
-    const existing = bySkippedDate.get(key);
-    if (!existing || rank[record.status] > rank[existing.status]) bySkippedDate.set(key, record);
-  }
-  return Array.from(bySkippedDate.values());
-}
+function localCalendarDate(value: string) { const date = new Date(value); if (Number.isNaN(date.getTime())) return value.slice(0, 10); return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`; }
+function dedupeSkippedMealRecords(records: SkippedMealRecord[]) { const rank: Record<SkippedMealRecord["status"], number> = { EXPIRED: 0, USED: 1, AVAILABLE: 2, SCHEDULED: 3 }; const bySkippedDate = new Map<string, SkippedMealRecord>(); for (const record of records) { const key = localCalendarDate(record.skippedAt); const existing = bySkippedDate.get(key); if (!existing || rank[record.status] > rank[existing.status]) bySkippedDate.set(key, record); } return Array.from(bySkippedDate.values()); }
 
 export async function updateSubscription(id: string, data: Partial<Subscription>) {
   const nextData: Partial<Subscription> = { ...data };
-
-  // Owner confirmation is the authoritative point for the first delivery.
-  // Centralize this calculation so every admin confirmation path stores the
-  // same start/end dates, even if a caller only supplies ACTIVE + SUCCESS.
-  if (data.status === "ACTIVE" && data.paymentStatus === "SUCCESS") {
+  // The customer's selected start date is authoritative; owner confirmation never moves it.
+  if (data.status === "ACTIVE" && data.paymentStatus === "SUCCESS" && !data.startDate) {
     const currentSnap = await getDoc(doc(db, "subscriptions", id));
     if (!currentSnap.exists()) throw new Error("Subscription not found");
     const current = currentSnap.data() as Subscription;
-    const confirmationTime = new Date();
-    const firstDelivery = getFirstDeliveryDate(confirmationTime, current.deliverySlot || current.deliveryTime || "");
-    const endDate = getSubscriptionEndDate(firstDelivery);
-    nextData.startDate = firstDelivery.toISOString();
-    nextData.endDate = endDate.toISOString();
+    if (current.startDate) { nextData.startDate = current.startDate; nextData.endDate = current.endDate || getSubscriptionEndDate(new Date(current.startDate)).toISOString(); }
   }
-
-  if (data.skippedMealRecords) {
-    nextData.skippedMealRecords = dedupeSkippedMealRecords(data.skippedMealRecords);
-    nextData.skippedMeals = nextData.skippedMealRecords.filter((record) => record.status === "AVAILABLE").length;
-  }
+  if (data.skippedMealRecords) { nextData.skippedMealRecords = dedupeSkippedMealRecords(data.skippedMealRecords); nextData.skippedMeals = nextData.skippedMealRecords.filter((record) => record.status === "AVAILABLE").length; }
   await updateDoc(doc(db, "subscriptions", id), { ...nextData, updatedAt: serverTimestamp() });
 }
-
-export async function listSubscriptions() {
-  const snap = await getDocs(collection(db, "subscriptions"));
-  const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription);
-  const expired = items.filter((s) => s.status === "ACTIVE" && isExpired(s));
-  await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() })));
-  return items.map((s) => expired.some((e) => e.id === s.id) ? { ...s, status: "COMPLETED" as const } : s);
-}
+export async function listSubscriptions() { const snap = await getDocs(collection(db, "subscriptions")); const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription); const expired = items.filter((s) => s.status === "ACTIVE" && isExpired(s)); await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() }))); return items.map((s) => expired.some((e) => e.id === s.id) ? { ...s, status: "COMPLETED" as const } : s); }
