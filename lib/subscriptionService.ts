@@ -16,7 +16,7 @@ export async function createSubscriptionDraft(data: Omit<Subscription, "id" | "c
   return ref.id;
 }
 function isExpired(subscription: Subscription) { return Boolean(subscription.endDate) && new Date(subscription.endDate).getTime() < Date.now(); }
-export async function getActiveSubscriptions(userId: string) { const snap = await getDocs(query(collection(db, "subscriptions"), where("userId", "==", userId), where("status", "==", "ACTIVE"))); const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription); const expired = items.filter(isExpired); await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() }))); return items.filter((s) => !expired.some((e) => e.id === s.id)); }
+export async function getActiveSubscriptions(userId: string) { const snap = await getDocs(query(collection(db, "subscriptions"), where("userId", "==", userId))); const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription).filter((s) => s.status === "ACTIVE"); const expired = items.filter(isExpired); await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() }))); return items.filter((s) => !expired.some((e) => e.id === s.id)); }
 export async function getActiveSubscription(userId: string) { const subscriptions = await getActiveSubscriptions(userId); return subscriptions[0] || null; }
 
 async function recoverSubscriptionsForCurrentAccount() {
@@ -36,9 +36,13 @@ async function recoverSubscriptionsForCurrentAccount() {
 
 export function subscribeToActiveSubscriptions(userId: string, callback: (value: Subscription[]) => void) {
   let recoveryAttempted = false;
-  const q = query(collection(db, "subscriptions"), where("userId", "==", userId), where("status", "==", "ACTIVE"));
+  // Query only by owner. Filtering ACTIVE client-side avoids a compound
+  // userId + status index requirement and ensures an admin status change from
+  // PENDING_PAYMENT to ACTIVE is immediately visible after refresh/listening.
+  const q = query(collection(db, "subscriptions"), where("userId", "==", userId));
   return onSnapshot(q, async (snap) => {
-    const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription);
+    const allItems = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription);
+    const items = allItems.filter((s) => s.status === "ACTIVE");
     const expired = items.filter(isExpired);
     await Promise.all(expired.filter((s) => s.id).map((s) => updateDoc(doc(db, "subscriptions", s.id!), { status: "COMPLETED", updatedAt: serverTimestamp() })));
     callback(items.filter((s) => !expired.some((e) => e.id === s.id)));
@@ -46,6 +50,8 @@ export function subscribeToActiveSubscriptions(userId: string, callback: (value:
       recoveryAttempted = true;
       await recoverSubscriptionsForCurrentAccount();
     }
+  }, (error) => {
+    console.error("Failed to subscribe to active subscriptions", error);
   });
 }
 export function subscribeToActiveSubscription(userId: string, callback: (value: Subscription | null) => void) { return subscribeToActiveSubscriptions(userId, (subscriptions) => callback(subscriptions[0] || null)); }
