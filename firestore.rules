@@ -4,6 +4,7 @@ rules_version = '2';
 // Sensitive payment, delivery-capacity and admin operations are server-controlled.
 // Deployed explicitly to replace the temporary Firebase Test Mode rules.
 // Security baseline: deny all unmatched documents and require authenticated ownership/admin access.
+// Triggered deployment refresh: keep Firebase rules deployment workflow active.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
