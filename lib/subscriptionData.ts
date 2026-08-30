@@ -30,8 +30,8 @@ const NO_SUBSCRIPTION_IMAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDo
   The subscription menu uses the same food items as the normal menu wherever
   the poster names the component explicitly.
 
-  IMPORTANT: Subscription images use clean /public paths without query strings.
-  This keeps them compatible with Next.js Image/localPatterns in every checkout step.
+  IMPORTANT: VIP/Baby VIP subscription images use clean /public paths without
+  cache-busting query strings so they work with Next.js Image/localPatterns.
 */
 
 const silverMeals: Record<string, SubscriptionMeal> = {
@@ -62,7 +62,7 @@ const diamondMeals: Record<string, SubscriptionMeal> = {
 };
 
 const babyVipMeals: Record<string, SubscriptionMeal> = {
-  mon: { name: "Fruit Salad + Dry Fruit Nut Salad + ABC Juice + Veg Roll + Boiled Egg + Sprout Salad", image: "/images/baby-vip-kit.png", calories: 343, protein: 23 },
+  mon: { name: "Fruit Salad + Dry Fruit Nut Salad + ABC Juice + Veg Roll + Boiled Egg + Sprout Salad", image: "/images/fsd.jpg", calories: 343, protein: 23 },
   tue: { name: "Veg Salad + Dry Fruit Nut Salad + Cucumber Juice + Egg Roll + Boiled Egg + Sprout Salad", image: "/images/baby-vip-tuesday.jpg", calories: 600, protein: 37 },
   wed: { name: "Corn Salad + Dry Fruit Nut Salad + Guava Juice + Chicken Roll + Boiled Egg + Sprout Salad", image: "/images/baby-vip-wednesday.jpg", calories: 598, protein: 45 },
   thu: { name: "Egg Salad + Dry Fruit Nut Salad + Curry Leaves Juice + Chicken + Egg Roll + Boiled Egg + Sprout Salad", image: "/images/baby-vip-thursday.jpg", calories: 835, protein: 68 },
