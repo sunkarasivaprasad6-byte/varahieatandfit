@@ -18,7 +18,17 @@ const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 const localDate = (value:string) => { const d = new Date(value); if (Number.isNaN(d.getTime())) return value.slice(0,10); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 const weekday = () => ["SUN","MON","TUE","WED","THU","FRI","SAT"][new Date().getDay()];
 const locationHref = (value:string) => { const v=(value||"").trim(); if(!v) return ""; if(/^https?:\/\//i.test(v)) return v; return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v)}`; };
-function LocationCell({location,address}:{location?:string;address?:string}){ const map=(location||"").trim(); const text=(address||"").trim(); const href=locationHref(map); if(!map&&!text) return <span>—</span>; return <div className="space-y-1">{map&&<a href={href} target="_blank" rel="noopener noreferrer" className="inline-block text-blue-300 underline decoration-blue-300/50 underline-offset-2 hover:text-blue-200">Open in Google Maps</a>}{text&&<p className="text-white/70">{text}</p>}</div>; }
+function LocationCell({location,address}:{location?:string;address?:string}){
+ const rawLocation=(location||"").trim();
+ const rawAddress=(address||"").trim();
+ const source=rawLocation||rawAddress;
+ const mapMatch=source.match(/https:\/\/www\.google\.com\/maps\?q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i);
+ const map=mapMatch?mapMatch[0]:rawLocation;
+ const href=map?locationHref(map):"";
+ const text=rawAddress&&rawAddress!==rawLocation?rawAddress:(mapMatch?source.slice(mapMatch[0].length).trim():rawAddress);
+ if(!map&&!text) return <span>—</span>;
+ return <div className="space-y-1">{map&&<a href={href} target="_blank" rel="noopener noreferrer" className="inline-block text-blue-300 underline decoration-blue-300/50 underline-offset-2 hover:text-blue-200">Open in Google Maps</a>}{text&&<p className="text-white/70">{text}</p>}</div>;
+}
 function subscriptionEligibleToday(s:Subscription,todayDate:string){
   if(!s.startDate) return false;
   const first = new Date(s.startDate);
