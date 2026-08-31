@@ -4,7 +4,7 @@ import { releaseDeliverySlotReservation, reserveDeliverySlot, type DeliverySlot 
 import { getSubscriptionEndDate } from "@/lib/subscriptionScheduling";
 
 export type SkippedMealRecord = { id: string; skippedAt: string; expiresAt: string; scheduledFor?: string; scheduledTime?: string; status: "AVAILABLE" | "SCHEDULED" | "USED" | "EXPIRED" };
-export type Subscription = { id?: string; userId: string; customerName: string; phone: string; planId: string; planName: string; amount: number; status: "PENDING_PAYMENT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED"; startDate: string; endDate: string; deliverySlot: DeliverySlot; deliveryTime: string; regularDeliverySlot?: DeliverySlot; deliverySlotOverrides?: Record<string, DeliverySlot>; address: string; proteinPerMeal: number; caloriesPerMeal: number; mealCustomizations?: Record<string, { protein: number }>; instructions: string; skippedMeals: number; skippedMealRecords?: SkippedMealRecord[]; paymentOrderId?: string; paymentId?: string; paymentStatus?: "PENDING" | "SUCCESS" | "FAILED"; upiTransactionId?: string; paymentVerifiedAt?: unknown; paymentFailedAt?: unknown; slotReservationId?: string; slotReservationExpiresAt?: string; createdAt?: unknown; updatedAt?: unknown };
+export type Subscription = { id?: string; userId: string; customerName: string; phone: string; planId: string; planName: string; amount: number; status: "PENDING_PAYMENT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED"; startDate: string; endDate: string; deliverySlot: DeliverySlot; deliveryTime: string; regularDeliverySlot?: DeliverySlot; deliverySlotOverrides?: Record<string, DeliverySlot>; address: string; location?: string; proteinPerMeal: number; caloriesPerMeal: number; mealCustomizations?: Record<string, { protein: number }>; instructions: string; skippedMeals: number; skippedMealRecords?: SkippedMealRecord[]; paymentOrderId?: string; paymentId?: string; paymentStatus?: "PENDING" | "SUCCESS" | "FAILED"; upiTransactionId?: string; paymentVerifiedAt?: unknown; paymentFailedAt?: unknown; slotReservationId?: string; slotReservationExpiresAt?: string; createdAt?: unknown; updatedAt?: unknown };
 
 export async function createSubscriptionDraft(data: Omit<Subscription, "id" | "createdAt" | "updatedAt">) {
   if (!data.deliverySlot) throw new Error("Please select a delivery slot");
@@ -36,9 +36,6 @@ async function recoverSubscriptionsForCurrentAccount() {
 
 export function subscribeToActiveSubscriptions(userId: string, callback: (value: Subscription[]) => void) {
   let recoveryAttempted = false;
-  // Query only by owner. Filtering ACTIVE client-side avoids a compound
-  // userId + status index requirement and ensures an admin status change from
-  // PENDING_PAYMENT to ACTIVE is immediately visible after refresh/listening.
   const q = query(collection(db, "subscriptions"), where("userId", "==", userId));
   return onSnapshot(q, async (snap) => {
     const allItems = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Subscription, "id">) }) as Subscription);
