@@ -426,6 +426,20 @@ export default function Footer() {
 
                 </li>
 
+                {/* Second Phone */}
+
+                <li className="flex items-center gap-4 group cursor-pointer">
+
+                  <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-[#d91f27]/10 group-hover:border-[#d91f27]/30 transition-colors">
+                    <Phone className="w-4 h-4 text-[#d91f27]" />
+                  </div>
+
+                  <span className="font-light group-hover:text-white transition-colors">
+                    +91 90148 63642
+                  </span>
+
+                </li>
+
                 {/* Email */}
 
                 <li className="flex items-center gap-4 group cursor-pointer">
